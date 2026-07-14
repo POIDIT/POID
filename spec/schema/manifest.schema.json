@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poid.dev/schema/manifest.schema.json",
+  "title": "POID manifest",
+  "description": "Machine-readable contract for manifest.json inside a .poid container (SPEC 1.0.0-draft.1, section 3). Unknown fields MUST be preserved and MUST NOT cause rejection, therefore no object in this schema forbids additional properties.",
+  "type": "object",
+  "required": ["poid", "type", "integrity"],
+  "properties": {
+    "poid": {
+      "description": "Spec version implemented by this manifest.",
+      "const": "1.0"
+    },
+    "type": {
+      "description": "Container type (SPEC section 4).",
+      "enum": ["app", "data", "workspace"]
+    },
+    "app": { "$ref": "#/$defs/app" },
+    "instance": { "$ref": "#/$defs/instance" },
+    "draft": {
+      "description": "true = opens in Studio, not Reader.",
+      "type": "boolean",
+      "default": false
+    },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "entry": {
+      "description": "Path of the HTML entry point within the container. REQUIRED for type=app.",
+      "$ref": "#/$defs/containerPath"
+    },
+    "storage": { "$ref": "#/$defs/storage" },
+    "permissions": { "$ref": "#/$defs/permissions" },
+    "shared_scope": {
+      "description": "Shared namespaces granted to nested apps. type=workspace only (SPEC section 10).",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "data_ref": { "$ref": "#/$defs/dataRef" },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "type": { "const": "app" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["app", "instance", "runtime", "entry", "storage", "permissions"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "workspace" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["app", "instance", "runtime", "storage", "permissions"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "data" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["data_ref"]
+      }
+    }
+  ],
+  "$defs": {
+    "app": {
+      "description": "What program is this? Stable across versions and copies (SPEC section 3.2).",
+      "type": "object",
+      "required": ["id", "name", "version"],
+      "properties": {
+        "id": { "$ref": "#/$defs/reverseDnsId" },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "$ref": "#/$defs/semver" },
+        "author": { "type": "string" },
+        "description": { "type": "string" },
+        "license": {
+          "description": "SPDX identifier.",
+          "type": "string"
+        },
+        "icon": { "$ref": "#/$defs/containerPath" },
+        "window": {
+          "description": "Reader window hints.",
+          "type": "object",
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 },
+            "min_width": { "type": "integer", "minimum": 1 },
+            "min_height": { "type": "integer", "minimum": 1 },
+            "resizable": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "instance": {
+      "description": "Which copy is this? MUST be null in a freshly packed POID; the reader writes a UUIDv4 on first open (SPEC sections 3.2 and 6.3).",
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "format": "uuid" }]
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["profile"],
+      "properties": {
+        "profile": {
+          "description": "Runtime profile (SPEC section 5.4), e.g. web, web+python, web+sql.",
+          "type": "string",
+          "pattern": "^web(\\+[a-z0-9-]+)*$"
+        },
+        "engines": {
+          "description": "Semver ranges for engines provided by the reader.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "bundled_deps": {
+          "description": "Audit trail of dependencies bundled into deps/.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "toolchain": {
+          "description": "Reproducibility record.",
+          "type": "object",
+          "properties": {
+            "builder": { "type": "string" },
+            "esbuild": { "type": "string" }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["embedded", "vault", "connection"] },
+        "slots": { "type": "boolean", "default": false },
+        "protected": {
+          "description": "true = data encrypted at rest, AES-256-GCM + Argon2id (SPEC section 9.2).",
+          "type": "boolean",
+          "default": false
+        },
+        "quota_mb": { "type": "integer", "minimum": 1 },
+        "requires": {
+          "description": "REQUIRED if mode = connection.",
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["kv", "sql", "docs", "files"] },
+            "hint": {
+              "description": "Suggested provider.",
+              "type": "string"
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": { "mode": { "const": "connection" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "required": ["requires"]
+      }
+    },
+    "permissions": {
+      "description": "A request, not a grant. Default posture: deny (SPEC section 9.1).",
+      "type": "object",
+      "properties": {
+        "network": {
+          "description": "Allowlist of origins; [] = no network.",
+          "type": "array",
+          "items": { "type": "string", "format": "uri" },
+          "default": []
+        },
+        "filesystem": {
+          "enum": ["none", "user-initiated"],
+          "default": "none"
+        },
+        "clipboard": { "type": "boolean", "default": false },
+        "print": { "type": "boolean", "default": false },
+        "notifications": { "type": "boolean", "default": false },
+        "mcp": {
+          "description": "MCP server ids the app may call.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        }
+      }
+    },
+    "dataRef": {
+      "description": "Identifies the application a type=data POID belongs to (SPEC section 11).",
+      "type": "object",
+      "required": ["app_id", "app_version", "schema"],
+      "properties": {
+        "app_id": { "$ref": "#/$defs/reverseDnsId" },
+        "app_version": { "$ref": "#/$defs/semver" },
+        "schema": { "type": "string", "minLength": 1 }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["algo"],
+      "properties": {
+        "algo": { "enum": ["sha256"] },
+        "app": { "$ref": "#/$defs/sha256Digest" },
+        "deps": { "$ref": "#/$defs/sha256Digest" }
+      }
+    },
+    "reverseDnsId": {
+      "description": "Reverse-DNS identifier, e.g. com.example.kanban.",
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9]*(\\.[a-zA-Z0-9-]+)+$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "containerPath": {
+      "description": "Relative path within the container. No absolute paths, drive letters, backslashes or .. segments (SPEC section 2.3).",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$)).+$"
+    },
+    "sha256Digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

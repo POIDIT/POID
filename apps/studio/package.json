@@ -1,0 +1,20 @@
+{
+  "name": "@poid/studio",
+  "version": "0.0.1",
+  "private": true,
+  "description": "POID Studio - the one executable (Tauri v2): Reader windows and the Studio hub.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

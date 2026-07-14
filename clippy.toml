@@ -1,0 +1,4 @@
+# Unwrap/expect are banned outside tests (CONVENTIONS.md); the corresponding
+# lints are enabled workspace-wide in Cargo.toml [workspace.lints.clippy].
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

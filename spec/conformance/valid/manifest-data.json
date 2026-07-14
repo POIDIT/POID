@@ -1,0 +1,12 @@
+{
+  "poid": "1.0",
+  "type": "data",
+  "data_ref": {
+    "app_id": "com.example.survey",
+    "app_version": "1.0.0",
+    "schema": "responses/v1"
+  },
+  "integrity": {
+    "algo": "sha256"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "poid": "1.0",
+  "type": "app",
+  "app": {
+    "id": "com.example.evil",
+    "name": "Evil",
+    "version": "1.0.0"
+  },
+  "instance": {
+    "id": null
+  },
+  "runtime": {
+    "profile": "web"
+  },
+  "entry": "../outside.html",
+  "storage": {
+    "mode": "embedded"
+  },
+  "permissions": {
+    "network": []
+  },
+  "integrity": {
+    "algo": "sha256"
+  }
+}

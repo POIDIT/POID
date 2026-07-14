@@ -1,0 +1,13 @@
+[package]
+name = "poid-core"
+description = "POID container logic: reading, writing and validating .poid files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror.workspace = true

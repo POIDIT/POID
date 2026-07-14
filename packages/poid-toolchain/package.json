@@ -1,0 +1,20 @@
+{
+  "name": "@poid/toolchain",
+  "version": "0.0.1",
+  "private": true,
+  "description": "In-app build pipeline: esbuild-wasm, the Standard Library and the dependency Resolver. No Node.js anywhere in the product.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "poid": "1.0",
+  "type": "app",
+  "x_vendor_extension": {
+    "note": "Unknown fields MUST be preserved and MUST NOT cause rejection (SPEC section 3, forward compatibility)."
+  },
+  "app": {
+    "id": "com.example.notepad",
+    "name": "Notepad",
+    "version": "0.1.0",
+    "x_custom": true
+  },
+  "instance": {
+    "id": "3f9a2b1c-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+  },
+  "runtime": {
+    "profile": "web"
+  },
+  "entry": "app/index.html",
+  "storage": {
+    "mode": "vault"
+  },
+  "permissions": {
+    "network": []
+  },
+  "integrity": {
+    "algo": "sha256",
+    "app": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

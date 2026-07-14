@@ -1,0 +1,25 @@
+{
+  "poid": "1.0",
+  "type": "app",
+  "app": {
+    "id": "com.example.kanban",
+    "name": "Kanban",
+    "version": "1.0.0"
+  },
+  "instance": {
+    "id": "not-a-uuid"
+  },
+  "runtime": {
+    "profile": "web"
+  },
+  "entry": "app/index.html",
+  "storage": {
+    "mode": "embedded"
+  },
+  "permissions": {
+    "network": []
+  },
+  "integrity": {
+    "algo": "sha256"
+  }
+}

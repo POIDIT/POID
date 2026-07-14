@@ -1,0 +1,17 @@
+# Rust
+/target/
+
+# Node / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Test artifacts
+coverage/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

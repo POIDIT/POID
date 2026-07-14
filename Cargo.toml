@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/poid-core",
+    "crates/poid-vault",
+    "crates/poid-broker",
+    "crates/poid-cli",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.80"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+poid-core = { path = "crates/poid-core" }
+poid-vault = { path = "crates/poid-vault" }
+poid-broker = { path = "crates/poid-broker" }
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[workspace.lints.rust]
+missing_docs = "deny"

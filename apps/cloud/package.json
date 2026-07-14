@@ -1,0 +1,20 @@
+{
+  "name": "@poid/cloud",
+  "version": "0.0.1",
+  "private": true,
+  "description": "POID Cloud - Cloudflare Workers backend services (Sync, Publish, Collect, DB, Files, Auth). The server never executes user code.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

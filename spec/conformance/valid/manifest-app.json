@@ -1,0 +1,55 @@
+{
+  "poid": "1.0",
+  "type": "app",
+  "app": {
+    "id": "com.example.kanban",
+    "name": "Kanban",
+    "version": "1.0.0",
+    "author": "Jane Doe",
+    "description": "A simple kanban board",
+    "license": "MIT",
+    "icon": "assets/icon.svg",
+    "window": {
+      "width": 1100,
+      "height": 750,
+      "min_width": 480,
+      "min_height": 360,
+      "resizable": true
+    }
+  },
+  "instance": {
+    "id": null
+  },
+  "draft": false,
+  "runtime": {
+    "profile": "web",
+    "engines": {
+      "pyodide": ">=0.26 <0.28"
+    },
+    "bundled_deps": ["react@18.3.1", "recharts@2.12.0"],
+    "toolchain": {
+      "builder": "poid-cli@1.0.0",
+      "esbuild": "0.24.0"
+    }
+  },
+  "entry": "app/index.html",
+  "storage": {
+    "mode": "embedded",
+    "slots": false,
+    "protected": false,
+    "quota_mb": 64
+  },
+  "permissions": {
+    "network": [],
+    "filesystem": "none",
+    "clipboard": false,
+    "print": false,
+    "notifications": false,
+    "mcp": []
+  },
+  "integrity": {
+    "algo": "sha256",
+    "app": "a3f5c1de8b204e7f96d0aa315c8e2f4b7d19c6a08e5b3f2d4c7a9e1b6f0d8c25",
+    "deps": "b81c4f2a9d6e0357c8b1f4a2d7e9c0b35f6a8d1e2c4b7f90a3d5e8c1b6f4a072"
+  }
+}
