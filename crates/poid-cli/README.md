@@ -14,6 +14,7 @@ poid data <file.poid> --export data.json         # extract user data (SECURITY �
 poid keygen -o key                               # generate an Ed25519 signing key
 poid sign <file.poid> --key <key>                # sign in place (SPEC §9.3)
 poid verify <file.poid>                          # verify integrity + signature
+poid conformance <suite-dir>                     # run the conformance suite (SPEC §14)
 ```
 
 Every command accepts `--json` for scripting and for the MCP server. Errors

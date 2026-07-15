@@ -5,6 +5,7 @@ members = [
     "crates/poid-vault",
     "crates/poid-broker",
     "crates/poid-cli",
+    "crates/poid-fixtures",
 ]
 
 [workspace.package]
@@ -17,8 +18,6 @@ rust-version = "1.82"
 anyhow = "1"
 thiserror = "2"
 poid-core = { path = "crates/poid-core" }
-poid-vault = { path = "crates/poid-vault" }
-poid-broker = { path = "crates/poid-broker" }
 
 [workspace.lints.clippy]
 unwrap_used = "deny"

@@ -8,6 +8,9 @@ pub struct Report {
     pub human: String,
     /// Structured value printed verbatim with `--json`.
     pub json: serde_json::Value,
+    /// Exit with a failure code even though a full report was produced —
+    /// used by `conformance` when fixtures fail.
+    pub exit_failure: bool,
 }
 
 /// A failed command: stable machine-readable code + human message.
@@ -20,6 +23,9 @@ pub struct CmdError {
     pub code: String,
     /// Human-readable explanation.
     pub message: String,
+    /// Normative conformance registry code (`POID-xxx`, `spec/errors.md`),
+    /// when the failure is a container rejection.
+    pub poid_code: Option<String>,
 }
 
 /// Builds a CLI-level error.
@@ -27,6 +33,7 @@ pub fn err(code: &str, message: impl Into<String>) -> CmdError {
     CmdError {
         code: code.to_owned(),
         message: message.into(),
+        poid_code: None,
     }
 }
 
@@ -35,6 +42,7 @@ impl From<PoidError> for CmdError {
         CmdError {
             code: e.code().to_owned(),
             message: e.to_string(),
+            poid_code: e.conformance_code().map(str::to_owned),
         }
     }
 }
@@ -44,6 +52,7 @@ impl From<std::io::Error> for CmdError {
         CmdError {
             code: "io".to_owned(),
             message: e.to_string(),
+            poid_code: None,
         }
     }
 }

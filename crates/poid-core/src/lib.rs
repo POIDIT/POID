@@ -37,7 +37,7 @@ pub use manifest::{
     StorageRequires, ToolchainRecord, WindowHints,
 };
 pub use poid::Poid;
-pub use read::{open, open_with_limits};
+pub use read::{conformance_check, open, open_with_limits};
 #[cfg(feature = "fs")]
 pub use read::{open_path, open_path_with_limits};
 pub use signature::{signature_payload_bytes, SignatureBlock, SignatureStatus, SIGNATURE_PATH};
