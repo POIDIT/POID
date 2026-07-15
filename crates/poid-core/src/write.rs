@@ -12,9 +12,8 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipWriter};
 
 use crate::error::PoidError;
-use crate::integrity::tree_digest;
 use crate::limits::Limits;
-use crate::manifest::{ContainerType, Integrity, IntegrityAlgo, Manifest};
+use crate::manifest::{ContainerType, Manifest};
 use crate::paths;
 use crate::read::{scan_content, MANIFEST_NAME, MIMETYPE_NAME};
 use crate::MEDIA_TYPE;
@@ -92,15 +91,7 @@ pub fn pack(builder: PoidBuilder) -> Result<Vec<u8>, PoidError> {
     }
 
     // Recompute integrity (SPEC §3.3); stale digests cannot survive a pack.
-    let integrity = manifest.integrity.get_or_insert_with(|| Integrity {
-        algo: IntegrityAlgo::Sha256,
-        app: None,
-        deps: None,
-        extra: crate::manifest::ExtraFields::new(),
-    });
-    integrity.algo = IntegrityAlgo::Sha256;
-    integrity.app = tree_digest(&files, "app/");
-    integrity.deps = tree_digest(&files, "deps/");
+    crate::integrity::refresh(&mut manifest, &files);
 
     manifest.validate()?;
 

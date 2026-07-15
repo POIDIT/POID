@@ -1,23 +1,161 @@
 //! `poid` — the POID command-line tool.
 //!
-//! `anyhow` is used at this top level only; library crates use `thiserror`
-//! (see `CONVENTIONS.md`).
+//! For developers only; end users never touch a terminal (the "no terminal"
+//! rule protects users, not people who live in a shell). Every command
+//! supports `--json` for scripting and for the MCP server. Exit code 0 means
+//! success; for `validate` it is the conformance verdict itself.
 
-use anyhow::Result;
+mod commands;
+mod output;
+mod project;
+mod templates;
 
-fn main() -> Result<()> {
-    println!(
-        "poid {} (spec {})",
-        env!("CARGO_PKG_VERSION"),
-        poid_core::SPEC_VERSION
-    );
-    Ok(())
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use clap::{Parser, Subcommand, ValueEnum};
+
+use crate::output::{CmdError, Report};
+
+/// Create, inspect and validate POID containers.
+#[derive(Parser)]
+#[command(name = "poid", version, about)]
+struct Cli {
+    /// Machine-readable JSON output on stdout (also for errors).
+    #[arg(long, global = true)]
+    json: bool,
+    #[command(subcommand)]
+    command: Command,
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn links_against_core() {
-        assert_eq!(poid_core::SPEC_VERSION, "1.0");
+#[derive(Subcommand)]
+enum Command {
+    /// Scaffold a new POID project.
+    Init {
+        /// Directory to create the project in.
+        dir: PathBuf,
+        /// Project template.
+        #[arg(long, value_enum, default_value_t = Template::Web)]
+        template: Template,
+        /// Write into a non-empty directory.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Build a project and package it into a .poid container.
+    Pack {
+        /// Project directory (must contain poid.json).
+        dir: PathBuf,
+        /// Output file. Defaults to `<dir-name>.poid`.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Conformance-check a container. Exit code 0 = conformant.
+    Validate {
+        /// The .poid file to check.
+        file: PathBuf,
+    },
+    /// Show manifest, file tree, permissions and sizes.
+    Inspect {
+        /// The .poid file to inspect.
+        file: PathBuf,
+    },
+    /// Unpack a container into a directory.
+    Extract {
+        /// The .poid file to unpack.
+        file: PathBuf,
+        /// Destination directory.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Write into a non-empty directory.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export the user's data. Your data is always extractable (SECURITY §6).
+    Data {
+        /// The .poid file to read.
+        file: PathBuf,
+        /// Where to write the exported data.
+        #[arg(long)]
+        export: PathBuf,
+    },
+    /// Generate an Ed25519 signing key.
+    Keygen {
+        /// Where to write the private key. Keep this file secret.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Overwrite an existing key file.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Sign a container in place (writes signature/signature.json).
+    Sign {
+        /// The .poid file to sign.
+        file: PathBuf,
+        /// Path to the private key file from `poid keygen`.
+        #[arg(long)]
+        key: PathBuf,
+    },
+    /// Verify integrity and signature.
+    Verify {
+        /// The .poid file to verify.
+        file: PathBuf,
+    },
+}
+
+/// Project template for `poid init`.
+#[derive(Clone, Copy, ValueEnum)]
+enum Template {
+    /// Plain HTML/CSS/JS application (works without any build tool).
+    Web,
+    /// Python application (runtime profile `web+python`, runs via Pyodide).
+    Python,
+    /// Offline survey / data-collection form.
+    Survey,
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    match run(&cli) {
+        Ok(report) => {
+            if cli.json {
+                println!("{}", report.json);
+            } else {
+                println!("{}", report.human);
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "error": { "code": e.code, "message": e.message } })
+                );
+            } else {
+                eprintln!("error[{}]: {}", e.code, e.message);
+            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run(cli: &Cli) -> Result<Report, CmdError> {
+    match &cli.command {
+        Command::Init {
+            dir,
+            template,
+            force,
+        } => commands::init(dir, *template, *force),
+        Command::Pack { dir, output } => commands::pack(dir, output.as_deref()),
+        Command::Validate { file } => commands::validate(file),
+        Command::Inspect { file } => commands::inspect(file),
+        Command::Extract {
+            file,
+            output,
+            force,
+        } => commands::extract(file, output, *force),
+        Command::Data { file, export } => commands::data(file, export),
+        Command::Keygen { output, force } => commands::keygen(output, *force),
+        Command::Sign { file, key } => commands::sign(file, key),
+        Command::Verify { file } => commands::verify(file),
     }
 }

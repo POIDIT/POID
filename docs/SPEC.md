@@ -388,7 +388,45 @@ When `storage.protected` is `true`, `data/` **MUST** be encrypted with **AES-256
 
 ### 9.3 Signatures
 
-`signature/` **MAY** contain an **Ed25519** signature over the manifest and content hashes. Readers **SHOULD** display a *verified publisher* indicator for validly signed POIDs. Enterprise policy (§13) **MAY** require a valid signature from a trusted key before execution.
+`signature/` **MAY** contain an **Ed25519** signature attesting the application content. Readers **SHOULD** display a *verified publisher* indicator for validly signed POIDs. Enterprise policy (§13) **MAY** require a valid signature from a trusted key before execution.
+
+#### 9.3.1 Signature file (normative)
+
+A signed POID contains exactly one file, `signature/signature.json`:
+
+```json
+{
+  "version": 1,
+  "algo": "ed25519",
+  "public_key": "…32 bytes, lowercase hex…",
+  "signature": "…64 bytes, lowercase hex…"
+}
+```
+
+#### 9.3.2 Signed payload (normative)
+
+The signature is computed over the UTF-8 bytes of a canonical JSON object built
+from the manifest with the following fields, in this order, omitting absent
+ones — compact serialization (no whitespace), preserved unknown fields inside
+the included blocks in lexicographic key order:
+
+`poid`, `type`, `app`, `runtime`, `entry`, `permissions`, `shared_scope`,
+`data_ref`, `integrity_app` (the value of `integrity.app`), `integrity_deps`
+(the value of `integrity.deps`).
+
+The payload deliberately **excludes**:
+
+- `instance` — assigned per copy by the reader on first open (§6.3);
+- `storage` — the storage location is the *user's* choice, and readers MUST
+  support mode conversion (§6.1); it is not part of the publisher's attestation;
+- `draft` — authoring state;
+- unknown fields at the manifest's top level — they may be added by
+  intermediate tooling.
+
+Because the payload includes the `integrity` digests (§3.3), a valid signature
+transitively attests the full content of `app/` and `deps/`. Any change to the
+application content therefore requires re-signing; assigning an instance
+identity, saving user data, or converting the storage mode does not.
 
 ### 9.4 Resource governance
 

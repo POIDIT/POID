@@ -121,6 +121,12 @@ pub enum PoidError {
         /// Which tree failed: `app` or `deps`.
         tree: &'static str,
     },
+    /// The signature file exists but cannot be understood (SPEC §9.3.1).
+    #[error("signature/signature.json is malformed: {reason}")]
+    SignatureMalformed {
+        /// What is wrong with the block.
+        reason: String,
+    },
     /// Filesystem error (only reachable with the `fs` feature).
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
@@ -153,6 +159,7 @@ impl PoidError {
             Self::AppTreeMissing => "app-tree-missing",
             Self::EntryMissing { .. } => "entry-missing",
             Self::IntegrityMismatch { .. } => "integrity-mismatch",
+            Self::SignatureMalformed { .. } => "signature-malformed",
             Self::Io(_) => "io",
         }
     }

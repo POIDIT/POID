@@ -65,6 +65,30 @@ impl Poid {
         Ok(())
     }
 
+    /// Signs the application content with an Ed25519 private key seed
+    /// (SPEC §9.3), writing `signature/signature.json`. Integrity digests are
+    /// refreshed first, so the signature always covers the current content.
+    pub fn sign(&mut self, private_key_seed: &[u8; 32]) -> Result<(), PoidError> {
+        crate::integrity::refresh(&mut self.manifest, &self.files);
+        let block = crate::signature::sign_manifest(&self.manifest, private_key_seed)?;
+        let bytes =
+            serde_json::to_vec_pretty(&block).map_err(|e| PoidError::SignatureMalformed {
+                reason: format!("block serialization: {e}"),
+            })?;
+        self.files
+            .insert(crate::signature::SIGNATURE_PATH.to_owned(), bytes);
+        Ok(())
+    }
+
+    /// Checks the container's signature (SPEC §9.3). `Unsigned` is a normal
+    /// state, not an error; a malformed signature file is an error.
+    pub fn signature_status(&self) -> Result<crate::SignatureStatus, PoidError> {
+        match self.files.get(crate::signature::SIGNATURE_PATH) {
+            None => Ok(crate::SignatureStatus::Unsigned),
+            Some(bytes) => crate::signature::verify_block(&self.manifest, bytes),
+        }
+    }
+
     /// Writes the instance identity assigned by the reader on first open, or
     /// after a copy is forked (SPEC §6.3). Generating the UUID is the
     /// caller's job — this crate has no randomness source, so it stays

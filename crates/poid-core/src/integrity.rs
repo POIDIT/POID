@@ -14,6 +14,23 @@
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+use crate::manifest::{ExtraFields, Integrity, IntegrityAlgo, Manifest};
+use crate::signature::to_hex;
+
+/// Recomputes the manifest's integrity block from the actual files. Called on
+/// every pack and before signing, so stale digests cannot survive either.
+pub(crate) fn refresh(manifest: &mut Manifest, files: &BTreeMap<String, Vec<u8>>) {
+    let integrity = manifest.integrity.get_or_insert_with(|| Integrity {
+        algo: IntegrityAlgo::Sha256,
+        app: None,
+        deps: None,
+        extra: ExtraFields::new(),
+    });
+    integrity.algo = IntegrityAlgo::Sha256;
+    integrity.app = tree_digest(files, "app/");
+    integrity.deps = tree_digest(files, "deps/");
+}
+
 /// Computes the canonical digest of all files whose path starts with `prefix`.
 ///
 /// Returns `None` when no files live under the prefix (the manifest then
@@ -33,17 +50,6 @@ pub(crate) fn tree_digest(files: &BTreeMap<String, Vec<u8>>, prefix: &str) -> Op
         outer.update(inner.finalize());
     }
     any.then(|| to_hex(&outer.finalize()))
-}
-
-/// Lowercase hex encoding.
-fn to_hex(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        s.push(HEX[(b >> 4) as usize] as char);
-        s.push(HEX[(b & 0x0f) as usize] as char);
-    }
-    s
 }
 
 #[cfg(test)]

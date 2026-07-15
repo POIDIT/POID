@@ -26,6 +26,7 @@ mod manifest;
 mod paths;
 mod poid;
 mod read;
+mod signature;
 mod write;
 
 pub use error::{ManifestError, PoidError};
@@ -39,6 +40,7 @@ pub use poid::Poid;
 pub use read::{open, open_with_limits};
 #[cfg(feature = "fs")]
 pub use read::{open_path, open_path_with_limits};
+pub use signature::{signature_payload_bytes, SignatureBlock, SignatureStatus, SIGNATURE_PATH};
 pub use write::{pack, PoidBuilder};
 
 // Re-exported so callers pass ids without adding their own `uuid` dependency.
