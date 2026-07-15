@@ -83,7 +83,7 @@ example.poid                (ZIP)
 
 An implementation **MUST** reject a POID that contains any entry that is:
 
-- a native executable or library (detected by magic bytes: `MZ`, `\x7fELF`, `\xfe\xed\xfa`, `\xcf\xfa\xed\xfe`, `!<arch>`)
+- a native executable or library (detected by magic bytes: `MZ`, `\x7fELF`, `\xfe\xed\xfa`, `\xce\xfa\xed\xfe`, `\xcf\xfa\xed\xfe`, `!<arch>`)
 - a symbolic link or hard link
 - a path traversal (`..`, absolute paths, drive letters)
 - a nested archive that itself contains prohibited content
@@ -188,6 +188,20 @@ Implementations **MUST** enforce a decompression ratio limit (RECOMMENDED: 100:1
 | `instance.id` | *Which copy is this?* | Unique per file instance (UUIDv4) | binding vault memory to this file |
 
 `instance.id` **MUST** be `null` in a freshly packed POID. The reader **MUST** generate a UUIDv4 and write it into the manifest on first open. See §6.3 for copy detection.
+
+### 3.3 Integrity computation (normative)
+
+The `integrity` digests are computed per tree: `integrity.app` over `app/`, `integrity.deps` over `deps/`.
+
+1. Take every file in the tree, identified by its **full container path** (e.g. `app/index.html`), sorted by byte-wise path order.
+2. For each file compute `SHA-256( path ‖ 0x00 ‖ content )`.
+3. The tree digest is the SHA-256 of the **concatenation of those per-file digests**, encoded as 64 lowercase hex characters.
+
+Hashing a list of per-file digests — rather than one concatenated stream — makes file boundaries unambiguous: no combination of paths and contents can collide with a different combination.
+
+A tree with no files has no digest; the corresponding field **MUST** be omitted.
+
+`data/`, `slots/`, `manifest.json` and `signature/` are deliberately **excluded** from the digests: consent is keyed to the application hash (§9.1), so saving user data or assigning `instance.id` **MUST NOT** invalidate consent.
 
 ---
 

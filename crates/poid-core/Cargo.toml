@@ -10,4 +10,22 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2 = "0.10.9"
+tempfile = { version = "3.27.0", optional = true }
 thiserror.workspace = true
+uuid = { version = "1.20.0", features = ["serde"] }
+zip = { version = "4.2.0", default-features = false, features = ["deflate"] }
+
+[features]
+default = ["fs"]
+fs = ["dep:tempfile"]
+
+[dev-dependencies]
+crc32fast = "1.5.0"
+proptest = "1.8.0"
+serde_json = "1.0.150"
+tempfile = "3.27.0"
+uuid = { version = "1.20.0", features = ["v4"] }
+zip = { version = "4.2.0", default-features = false, features = ["deflate"] }
