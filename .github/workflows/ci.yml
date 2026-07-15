@@ -23,6 +23,12 @@ jobs:
         run: cargo test --workspace
       - name: WASM build (poid-core, Web Reader target)
         run: cargo build -p poid-core --no-default-features --target wasm32-unknown-unknown
+      - name: Conformance fixtures are reproducible
+        run: |
+          cargo run -p poid-fixtures --bin gen-conformance -- spec/conformance
+          git diff --exit-code spec/conformance
+      - name: Reference implementation passes the conformance suite
+        run: cargo run -p poid-cli -- conformance spec/conformance
 
   typescript:
     name: TypeScript

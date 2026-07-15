@@ -49,7 +49,7 @@ pub fn open_path_with_limits(p: &std::path::Path, limits: &Limits) -> Result<Poi
     // A container larger than the whole uncompressed budget cannot be valid;
     // refuse before reading it into memory.
     if meta.len() > limits.max_total_uncompressed {
-        return Err(PoidError::ZipBomb {
+        return Err(PoidError::ZipBombSize {
             path: p.display().to_string(),
         });
     }
@@ -62,7 +62,18 @@ pub fn open_with_limits(bytes: &[u8], limits: &Limits) -> Result<Poid, PoidError
     // 1. `mimetype` first, STORED, exact content — checked on the raw local
     //    file header at offset 0, so type detection needs only ~60 bytes and
     //    prepended junk cannot fool it (SPEC §2.1).
-    check_mimetype_raw(bytes)?;
+    if let Err(e) = check_mimetype_raw(bytes) {
+        // The registry distinguishes a missing mimetype (POID-001) from a
+        // misplaced one (POID-002); the raw check alone cannot tell.
+        if let PoidError::MimetypeNotFirst { .. } = &e {
+            if let Ok(archive) = ZipArchive::new(Cursor::new(bytes)) {
+                if archive.index_for_name(MIMETYPE_NAME).is_none() {
+                    return Err(PoidError::MimetypeMissing);
+                }
+            }
+        }
+        return Err(e);
+    }
 
     let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|_| PoidError::NotZip)?;
     if archive.len() > limits.max_entries {
@@ -148,10 +159,29 @@ pub fn open_with_limits(bytes: &[u8], limits: &Limits) -> Result<Poid, PoidError
             if !files.keys().any(|k| k.starts_with("app/")) {
                 return Err(PoidError::AppTreeMissing);
             }
+            if !files.keys().any(|k| k.starts_with("apps/")) {
+                return Err(PoidError::WorkspaceAppsMissing);
+            }
         }
     }
 
     Ok(Poid::from_parts(manifest, files))
+}
+
+/// The full conformance check for container bytes (SPEC §14): open with the
+/// given limits, verify the integrity digests, and reject a signature that is
+/// present but does not verify. An unsigned container passes — signing is
+/// optional (SPEC §9.3).
+///
+/// This is the exact predicate the conformance suite asserts; `poid validate`
+/// and `poid conformance` are thin wrappers around it.
+pub fn conformance_check(bytes: &[u8], limits: &Limits) -> Result<Poid, PoidError> {
+    let poid = open_with_limits(bytes, limits)?;
+    poid.verify()?;
+    match poid.signature_status()? {
+        crate::SignatureStatus::Invalid => Err(PoidError::SignatureInvalid),
+        _ => Ok(poid),
+    }
 }
 
 /// Raw check of the first local file header (SPEC §2.1).
@@ -273,8 +303,13 @@ fn read_limited<R: Read>(
             break;
         }
         total += n as u64;
-        if total > *budget || total > ratio_cap {
-            return Err(PoidError::ZipBomb {
+        if total > *budget {
+            return Err(PoidError::ZipBombSize {
+                path: name.to_owned(),
+            });
+        }
+        if total > ratio_cap {
+            return Err(PoidError::ZipBombRatio {
                 path: name.to_owned(),
             });
         }

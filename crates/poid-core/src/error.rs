@@ -13,6 +13,9 @@ pub enum PoidError {
     /// The bytes are not a ZIP archive at all.
     #[error("not a ZIP archive")]
     NotZip,
+    /// The archive contains no `mimetype` entry at all (SPEC §2.1).
+    #[error("the archive has no `mimetype` entry (SPEC 2.1)")]
+    MimetypeMissing,
     /// The first ZIP entry is not named `mimetype` (SPEC §2.1).
     #[error("first ZIP entry must be `mimetype`, found `{found}` (SPEC 2.1)")]
     MimetypeNotFirst {
@@ -79,9 +82,17 @@ pub enum PoidError {
         /// Container path of the offending entry.
         path: String,
     },
-    /// Decompression exceeded the ratio or absolute size limits (SPEC §2.3).
-    #[error("decompression limits exceeded at `{path}`; refusing a likely zip bomb (SPEC 2.3)")]
-    ZipBomb {
+    /// An entry's decompression ratio exceeded the cap (SPEC §2.3).
+    #[error("`{path}` exceeds the decompression ratio cap; refusing a likely zip bomb (SPEC 2.3)")]
+    ZipBombRatio {
+        /// Container path of the entry that blew the ratio cap.
+        path: String,
+    },
+    /// The container exceeded the absolute uncompressed size budget (SPEC §2.3).
+    #[error(
+        "`{path}` exceeds the uncompressed size budget; refusing a likely zip bomb (SPEC 2.3)"
+    )]
+    ZipBombSize {
         /// Container path of the entry that blew the budget.
         path: String,
     },
@@ -109,6 +120,9 @@ pub enum PoidError {
     /// The `app/` tree required for this container type is missing (SPEC §2.2).
     #[error("this container type requires an `app/` tree (SPEC 2.2)")]
     AppTreeMissing,
+    /// A workspace has no nested POIDs under `apps/` (SPEC §4.3).
+    #[error("a workspace must contain at least one nested POID under `apps/` (SPEC 4.3)")]
+    WorkspaceAppsMissing,
     /// The manifest `entry` file does not exist in the container.
     #[error("manifest entry `{path}` does not exist in the container")]
     EntryMissing {
@@ -121,6 +135,9 @@ pub enum PoidError {
         /// Which tree failed: `app` or `deps`.
         tree: &'static str,
     },
+    /// The signature is well-formed but does not verify (SPEC §9.3.2).
+    #[error("the signature does not match the content; the file was modified after signing or the signature is forged (SPEC 9.3)")]
+    SignatureInvalid,
     /// The signature file exists but cannot be understood (SPEC §9.3.1).
     #[error("signature/signature.json is malformed: {reason}")]
     SignatureMalformed {
@@ -140,6 +157,7 @@ impl PoidError {
     pub fn code(&self) -> &'static str {
         match self {
             Self::NotZip => "not-zip",
+            Self::MimetypeMissing => "mimetype-missing",
             Self::MimetypeNotFirst { .. } => "mimetype-not-first",
             Self::MimetypeNotStored => "mimetype-not-stored",
             Self::MimetypeMismatch => "mimetype-mismatch",
@@ -151,17 +169,53 @@ impl PoidError {
             Self::InvalidPath { .. } => "invalid-path",
             Self::DuplicatePath { .. } => "duplicate-path",
             Self::UnsupportedCompression { .. } => "unsupported-compression",
-            Self::ZipBomb { .. } => "zip-bomb",
+            Self::ZipBombRatio { .. } => "zip-bomb-ratio",
+            Self::ZipBombSize { .. } => "zip-bomb-size",
             Self::TooManyEntries => "too-many-entries",
             Self::NestedTooDeep { .. } => "nested-too-deep",
             Self::CorruptEntry { .. } => "corrupt-entry",
             Self::DataContainerWithCode { .. } => "data-container-with-code",
             Self::AppTreeMissing => "app-tree-missing",
+            Self::WorkspaceAppsMissing => "workspace-apps-missing",
             Self::EntryMissing { .. } => "entry-missing",
             Self::IntegrityMismatch { .. } => "integrity-mismatch",
+            Self::SignatureInvalid => "signature-invalid",
             Self::SignatureMalformed { .. } => "signature-malformed",
             Self::Io(_) => "io",
         }
+    }
+
+    /// The normative conformance registry code (`POID-xxx`, `spec/errors.md`).
+    ///
+    /// Registry codes are coarser than [`Self::code`]: several diagnostic
+    /// codes may share one registry entry. `None` for environmental errors
+    /// (I/O) that say nothing about the container itself.
+    pub fn conformance_code(&self) -> Option<&'static str> {
+        Some(match self {
+            Self::MimetypeMissing | Self::MimetypeMismatch => "POID-001",
+            Self::MimetypeNotFirst { .. } | Self::MimetypeNotStored => "POID-002",
+            Self::NotZip => "POID-003",
+            Self::CorruptEntry { .. } => "POID-004",
+            Self::ManifestMissing => "POID-010",
+            Self::Manifest(e) => e.conformance_code(),
+            Self::NativeCode { .. } => "POID-020",
+            Self::Link { .. } => "POID-021",
+            Self::PathTraversal { .. } | Self::InvalidPath { .. } => "POID-022",
+            Self::ZipBombRatio { .. } => "POID-023",
+            Self::ZipBombSize { .. } => "POID-024",
+            Self::UnsupportedCompression { .. } => "POID-025",
+            Self::NestedTooDeep { .. } => "POID-026",
+            Self::DuplicatePath { .. } => "POID-027",
+            Self::TooManyEntries => "POID-028",
+            Self::EntryMissing { .. } => "POID-030",
+            Self::IntegrityMismatch { .. } => "POID-031",
+            Self::AppTreeMissing => "POID-032",
+            Self::DataContainerWithCode { .. } => "POID-040",
+            Self::WorkspaceAppsMissing => "POID-041",
+            Self::SignatureInvalid => "POID-050",
+            Self::SignatureMalformed { .. } => "POID-051",
+            Self::Io(_) => return None,
+        })
     }
 }
 
@@ -238,6 +292,14 @@ pub enum ManifestError {
 }
 
 impl ManifestError {
+    /// The normative conformance registry code (see [`PoidError::conformance_code`]).
+    pub fn conformance_code(&self) -> &'static str {
+        match self {
+            Self::Syntax { .. } => "POID-011",
+            _ => "POID-012",
+        }
+    }
+
     /// The stable machine-readable code for this error (see [`PoidError::code`]).
     pub fn code(&self) -> &'static str {
         match self {

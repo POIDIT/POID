@@ -176,7 +176,7 @@ fn rejects_zip_bomb_by_ratio_with_default_limits() {
     // 1 MiB grace floor, so default limits must refuse it.
     let zeros = vec![0u8; 8 * 1024 * 1024];
     let bytes = mini_zip_container(&zeros);
-    assert_eq!(err_code(open(&bytes)), "zip-bomb");
+    assert_eq!(err_code(open(&bytes)), "zip-bomb-ratio");
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn rejects_zip_bomb_by_absolute_budget() {
         max_total_uncompressed: 1024 * 1024,
         ..Limits::default()
     };
-    assert_eq!(err_code(open_with_limits(&bytes, &limits)), "zip-bomb");
+    assert_eq!(err_code(open_with_limits(&bytes, &limits)), "zip-bomb-size");
 }
 
 /// A container written with the real zip writer: conformant mimetype, valid

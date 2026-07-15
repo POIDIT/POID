@@ -28,7 +28,7 @@ const validate = ajv.compile(schema);
 let failures = 0;
 
 function check(dir, expectValid) {
-  const dirPath = join(root, "spec", "conformance", dir);
+  const dirPath = join(root, "spec", "conformance", "manifest", dir);
   const files = readdirSync(dirPath).filter((f) => f.endsWith(".json"));
   if (files.length === 0) {
     console.error(`FAIL  spec/conformance/${dir} contains no fixtures`);

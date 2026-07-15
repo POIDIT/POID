@@ -45,6 +45,7 @@ pub fn init(dir: &Path, template: Template, force: bool) -> Result<Report, CmdEr
 
     let dirname = dir.display();
     Ok(Report {
+        exit_failure: false,
         human: format!(
             "Created project in {dirname}\n  {}\n\nNext:\n  poid pack {dirname} -o {slug}.poid",
             written.join("\n  ")
@@ -162,6 +163,7 @@ pub fn pack(dir: &Path, output: Option<&Path>) -> Result<Report, CmdError> {
         None => (None, None),
     };
     Ok(Report {
+        exit_failure: false,
         human: format!(
             "Packed {count} files ({}) -> {}",
             human_size(bytes.len() as u64),
@@ -180,8 +182,14 @@ pub fn pack(dir: &Path, output: Option<&Path>) -> Result<Report, CmdError> {
 pub fn validate(file: &Path) -> Result<Report, CmdError> {
     let poid = open_path(file)?;
     poid.verify()?;
+    // A present-but-invalid signature is nonconformant (POID-050); absence
+    // of a signature is fine — signing is optional (SPEC §9.3).
+    if poid.signature_status()? == SignatureStatus::Invalid {
+        return Err(PoidError::SignatureInvalid.into());
+    }
     let m = poid.manifest();
     Ok(Report {
+        exit_failure: false,
         human: format!(
             "OK: {} is a conformant POID (spec {})",
             file.display(),
@@ -241,6 +249,7 @@ pub fn inspect(file: &Path) -> Result<Report, CmdError> {
         serde_json::from_slice(&m.to_json_bytes().map_err(PoidError::from)?)
             .map_err(|e| err("io", e.to_string()))?;
     Ok(Report {
+        exit_failure: false,
         human: human.trim_end().to_owned(),
         json: json!({
             "manifest": manifest_value,
@@ -286,6 +295,7 @@ pub fn extract(file: &Path, output: &Path, force: bool) -> Result<Report, CmdErr
     }
 
     Ok(Report {
+        exit_failure: false,
         human: format!("Extracted {count} files to {}", output.display()),
         json: json!({ "output": output.display().to_string(), "files": count }),
     })
@@ -307,6 +317,7 @@ pub fn data(file: &Path, export: &Path) -> Result<Report, CmdError> {
     };
     atomic_write(export, bytes)?;
     Ok(Report {
+        exit_failure: false,
         human: format!(
             "Exported {} of user data to {}",
             human_size(bytes.len() as u64),
@@ -339,6 +350,7 @@ pub fn keygen(output: &Path, force: bool) -> Result<Report, CmdError> {
     }
 
     Ok(Report {
+        exit_failure: false,
         human: format!(
             "Private key written to {} — keep this file secret.\nPublic key: {public_key}",
             output.display()
@@ -372,6 +384,7 @@ pub fn sign(file: &Path, key: &Path) -> Result<Report, CmdError> {
         _ => return Err(err("sign-failed", "signature did not verify after signing")),
     };
     Ok(Report {
+        exit_failure: false,
         human: format!("Signed {}\nPublic key: {public_key}", file.display()),
         json: json!({ "signed": file.display().to_string(), "public_key": public_key }),
     })
@@ -382,10 +395,12 @@ pub fn verify(file: &Path) -> Result<Report, CmdError> {
     poid.verify()?;
     match poid.signature_status()? {
         SignatureStatus::Unsigned => Ok(Report {
+            exit_failure: false,
             human: "integrity: OK\nsignature: none (this POID is unsigned)".to_owned(),
             json: json!({ "integrity": "ok", "signature": "unsigned" }),
         }),
         SignatureStatus::Valid { public_key } => Ok(Report {
+            exit_failure: false,
             human: format!("integrity: OK\nsignature: valid\npublic key: {public_key}"),
             json: json!({ "integrity": "ok", "signature": "valid", "public_key": public_key }),
         }),
@@ -395,6 +410,98 @@ pub fn verify(file: &Path) -> Result<Report, CmdError> {
              modified after signing, or the signature is not genuine",
         )),
     }
+}
+
+/// Runs the conformance suite at `dir` (SPEC §14, `spec/CONFORMANCE.md`):
+/// every `valid/*.poid` must pass [`poid_core::conformance_check`], every
+/// `invalid/*.poid` must fail with exactly the registry code its sibling
+/// `*.expected.json` names.
+pub fn conformance(dir: &Path) -> Result<Report, CmdError> {
+    let limits = poid_core::Limits::default();
+    let mut rows: Vec<(String, bool, String, String)> = Vec::new(); // name, pass, expected, got
+    for group in ["valid", "invalid"] {
+        let group_dir = dir.join(group);
+        if !group_dir.is_dir() {
+            return Err(err(
+                "suite-missing",
+                format!(
+                    "`{}` does not contain a `{group}/` directory",
+                    dir.display()
+                ),
+            ));
+        }
+        let mut files: Vec<PathBuf> = std::fs::read_dir(&group_dir)?
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "poid"))
+            .collect();
+        files.sort();
+        for path in files {
+            let stem = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let expected_bytes = std::fs::read(group_dir.join(format!("{stem}.expected.json")))
+                .map_err(|_| {
+                    err(
+                        "suite-invalid",
+                        format!("fixture {group}/{stem} lacks a sibling {stem}.expected.json"),
+                    )
+                })?;
+            let expected: serde_json::Value = serde_json::from_slice(&expected_bytes)
+                .map_err(|e| err("suite-invalid", format!("{stem}.expected.json: {e}")))?;
+            let want_valid = expected["valid"].as_bool().ok_or_else(|| {
+                err(
+                    "suite-invalid",
+                    format!("{stem}.expected.json lacks a boolean `valid`"),
+                )
+            })?;
+            let want = if want_valid {
+                "valid".to_owned()
+            } else {
+                expected["code"].as_str().unwrap_or("invalid").to_owned()
+            };
+
+            let bytes = std::fs::read(&path)?;
+            let got = match poid_core::conformance_check(&bytes, &limits) {
+                Ok(_) => "valid".to_owned(),
+                Err(e) => e.conformance_code().unwrap_or("io").to_owned(),
+            };
+            let pass = got == want;
+            rows.push((format!("{group}/{stem}"), pass, want, got));
+        }
+    }
+    if rows.is_empty() {
+        return Err(err("suite-missing", "no fixtures found"));
+    }
+
+    let total = rows.len();
+    let passed = rows.iter().filter(|(_, pass, _, _)| *pass).count();
+    let failed = total - passed;
+    let mut human = String::new();
+    for (name, pass, want, got) in &rows {
+        if *pass {
+            human.push_str(&format!("PASS  {name}\n"));
+        } else {
+            human.push_str(&format!("FAIL  {name}  expected {want}, got {got}\n"));
+        }
+    }
+    human.push_str(&format!(
+        "\n{passed}/{total} fixtures passed{}",
+        if failed == 0 { " — conformant" } else { "" }
+    ));
+
+    Ok(Report {
+        exit_failure: failed > 0,
+        human: human.trim_end().to_owned(),
+        json: json!({
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "results": rows.iter().map(|(name, pass, want, got)| json!({
+                "fixture": name, "pass": pass, "expected": want, "got": got,
+            })).collect::<Vec<_>>(),
+        }),
+    })
 }
 
 fn type_name(t: ContainerType) -> &'static str {

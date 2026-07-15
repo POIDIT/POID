@@ -600,8 +600,8 @@ dependencies = [
 name = "poid-core"
 version = "0.0.1"
 dependencies = [
- "crc32fast",
  "ed25519-dalek",
+ "poid-fixtures",
  "proptest",
  "serde",
  "serde_json",
@@ -609,6 +609,16 @@ dependencies = [
  "tempfile",
  "thiserror",
  "uuid",
+ "zip",
+]
+
+[[package]]
+name = "poid-fixtures"
+version = "0.0.1"
+dependencies = [
+ "crc32fast",
+ "poid-core",
+ "serde_json",
  "zip",
 ]
 

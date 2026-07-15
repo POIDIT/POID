@@ -75,7 +75,7 @@ example.poid                (ZIP)
 │   └── project-b/
 ├── deps/                   OPTIONAL  bundled runtime dependencies (wheels, wasm)
 ├── migrations/             OPTIONAL  data schema migrations (see §12)
-├── apps/                   OPTIONAL  nested POIDs (type=workspace only)
+├── apps/                   REQUIRED for type=workspace — nested POIDs (§4.3)
 └── signature/              OPTIONAL  Ed25519 signature (see §9.3)
 ```
 
@@ -222,6 +222,10 @@ Contains **only data** — no `app/`, no `entry`, no code. Used for:
 
 ### 4.3 `type: "workspace"`
 Contains multiple nested POIDs under `apps/`. See §10.
+
+A workspace **MUST** contain at least one nested POID under `apps/`; a
+workspace without `apps/` is not conformant (POID-041). A workspace with an
+empty shell and no applications has no meaning.
 
 ---
 
@@ -496,7 +500,7 @@ Readers **MAY** support a managed policy layer (GPO / MDM / configuration file) 
 An implementation is **conformant** if it:
 
 1. Passes the POID Conformance Suite (`spec/conformance/`).
-2. Rejects every file in `spec/conformance/invalid/` with the specified error code.
+2. Rejects every file in `spec/conformance/invalid/` with the specified error code (registry: `spec/errors.md`).
 3. Correctly opens every file in `spec/conformance/valid/`.
 4. Enforces §5.2 (isolation), §7.1 (credential isolation), and §9.1 (consent).
 

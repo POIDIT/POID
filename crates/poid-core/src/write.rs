@@ -120,6 +120,9 @@ pub fn pack(builder: PoidBuilder) -> Result<Vec<u8>, PoidError> {
             if !files.keys().any(|k| k.starts_with("app/")) {
                 return Err(PoidError::AppTreeMissing);
             }
+            if !files.keys().any(|k| k.starts_with("apps/")) {
+                return Err(PoidError::WorkspaceAppsMissing);
+            }
         }
     }
 

@@ -100,6 +100,12 @@ enum Command {
         /// The .poid file to verify.
         file: PathBuf,
     },
+    /// Run the conformance suite: any implementation can use this to claim
+    /// conformance (SPEC 14, spec/CONFORMANCE.md). Exit 0 = 100% passed.
+    Conformance {
+        /// Suite directory containing valid/ and invalid/ fixture folders.
+        suite: PathBuf,
+    },
 }
 
 /// Project template for `poid init`.
@@ -122,16 +128,29 @@ fn main() -> ExitCode {
             } else {
                 println!("{}", report.human);
             }
-            ExitCode::SUCCESS
+            if report.exit_failure {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
         }
         Err(e) => {
             if cli.json {
                 println!(
                     "{}",
-                    serde_json::json!({ "error": { "code": e.code, "message": e.message } })
+                    serde_json::json!({ "error": {
+                        "code": e.code,
+                        "poid": e.poid_code,
+                        "message": e.message,
+                    } })
                 );
             } else {
-                eprintln!("error[{}]: {}", e.code, e.message);
+                let registry = e
+                    .poid_code
+                    .as_ref()
+                    .map(|c| format!(" / {c}"))
+                    .unwrap_or_default();
+                eprintln!("error[{}{registry}]: {}", e.code, e.message);
             }
             ExitCode::FAILURE
         }
@@ -157,5 +176,6 @@ fn run(cli: &Cli) -> Result<Report, CmdError> {
         Command::Keygen { output, force } => commands::keygen(output, *force),
         Command::Sign { file, key } => commands::sign(file, key),
         Command::Verify { file } => commands::verify(file),
+        Command::Conformance { suite } => commands::conformance(suite),
     }
 }
