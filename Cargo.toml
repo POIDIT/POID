@@ -6,7 +6,11 @@ members = [
     "crates/poid-broker",
     "crates/poid-cli",
     "crates/poid-fixtures",
+    "crates/poid-wasm",
 ]
+# A build tool, not a product crate: kept out of the workspace so its heavy
+# dependency graph (walrus, wasmparser) stays out of `cargo test/clippy`.
+exclude = ["tools/wasm-bindgen-driver"]
 
 [workspace.package]
 version = "0.0.1"

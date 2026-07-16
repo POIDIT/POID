@@ -21,8 +21,8 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
-      - name: WASM build (poid-core, Web Reader target)
-        run: cargo build -p poid-core --no-default-features --target wasm32-unknown-unknown
+      - name: WASM build (poid-wasm, the Web Reader's validation core)
+        run: cargo build -p poid-wasm --target wasm32-unknown-unknown
       - name: Conformance fixtures are reproducible
         run: |
           cargo run -p poid-fixtures --bin gen-conformance -- spec/conformance
@@ -63,11 +63,23 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            tools/wasm-bindgen-driver
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Build packages (SDK/UI needed by the harness)
         run: pnpm -r build
+      - name: Build the Web Reader validation core (WASM)
+        run: pnpm --filter @poid/web build:wasm
       - name: Install Chromium
         run: pnpm --filter @poid/host exec playwright install --with-deps chromium
       - name: Sandbox boundary e2e
         run: pnpm --filter @poid/host e2e
+      - name: Web Reader e2e (conformance, zero-network, offline)
+        run: pnpm --filter @poid/web e2e

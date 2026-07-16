@@ -1,0 +1,26 @@
+{
+  "name": "POID Web Reader",
+  "short_name": "POID",
+  "description": "Open .poid files entirely in your browser — nothing is uploaded.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101418",
+  "theme_color": "#101418",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/vnd.poid+zip": [".poid"]
+      }
+    }
+  ]
+}

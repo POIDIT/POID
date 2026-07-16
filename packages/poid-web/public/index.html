@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Open a .poid file right here in your browser. Everything runs on your device — nothing is uploaded."
+    />
+    <title>POID Web Reader</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#101418" />
+  </head>
+  <body>
+    <header class="poid-header">
+      <span class="poid-header__mark" aria-hidden="true">▸</span>
+      <span class="poid-header__name">POID</span>
+      <span class="poid-header__sub">Web Reader</span>
+    </header>
+
+    <main>
+      <section id="home">
+        <div id="drop-zone" class="poid-drop">
+          <p class="poid-drop__title">Drop a <strong>.poid</strong> file here</p>
+          <p class="poid-drop__or">or</p>
+          <button id="pick-button" type="button" class="poid-drop__pick">Choose a file</button>
+          <input id="file-input" type="file" accept=".poid" hidden />
+        </div>
+        <p class="poid-privacy">
+          Everything runs on your device. This page makes no network requests after it loads —
+          your file is never uploaded, and it cannot contain native code.
+        </p>
+      </section>
+
+      <section id="outcome" class="poid-outcome" hidden></section>
+
+      <section id="reader" hidden>
+        <div id="reader-toolbar" class="poid-toolbar"></div>
+        <div id="reader-host" class="poid-reader-host"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
