@@ -11,9 +11,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@poid/sdk": "workspace:*",
+    "@poid/ui": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "esbuild": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

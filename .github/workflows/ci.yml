@@ -44,11 +44,30 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint and format (Biome)
         run: pnpm exec biome ci .
-      - name: Typecheck
-        run: pnpm -r typecheck
       - name: Build
         run: pnpm -r build
+      - name: Typecheck
+        run: pnpm -r typecheck
       - name: Test
         run: pnpm -r test
       - name: Validate manifest schema against conformance fixtures
         run: node scripts/validate-schema.mjs
+
+  browser:
+    name: Browser boundary (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build packages (SDK/UI needed by the harness)
+        run: pnpm -r build
+      - name: Install Chromium
+        run: pnpm --filter @poid/host exec playwright install --with-deps chromium
+      - name: Sandbox boundary e2e
+        run: pnpm --filter @poid/host e2e
