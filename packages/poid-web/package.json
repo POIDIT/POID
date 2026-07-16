@@ -10,10 +10,22 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:site": "node scripts/build-site.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@poid/host": "workspace:*",
+    "@poid/sdk": "workspace:*",
+    "@poid/ui": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "catalog:",
+    "fake-indexeddb": "^6.0.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

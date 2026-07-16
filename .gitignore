@@ -18,3 +18,8 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Generated WASM bindings and the built Web Reader site
+packages/poid-web/src/wasm/
+packages/poid-web/site/
+tools/wasm-bindgen-driver/target/

@@ -1,0 +1,13 @@
+[package]
+name = "wasm-bindgen-driver"
+description = "Minimal wasm-bindgen driver: .wasm in, web-target JS bindings out"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow = "1"
+# Must match the `wasm-bindgen` version pinned in crates/poid-wasm/Cargo.toml —
+# the bindgen transform refuses a mismatched module.
+wasm-bindgen-cli-support = "=0.2.126"

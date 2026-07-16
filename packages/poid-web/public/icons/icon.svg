@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img">
+  <title>POID — a document that runs</title>
+  <rect width="128" height="128" rx="24" fill="#101418"/>
+  <path d="M40 24h32l16 16v64a4 4 0 0 1-4 4H40a4 4 0 0 1-4-4V28a4 4 0 0 1 4-4z" fill="#1a2027" stroke="#4cc38a" stroke-width="4"/>
+  <path d="M72 24v16h16" fill="none" stroke="#4cc38a" stroke-width="4"/>
+  <path d="M56 60l20 14-20 14z" fill="#4cc38a"/>
+</svg>
