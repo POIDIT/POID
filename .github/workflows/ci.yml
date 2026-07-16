@@ -44,10 +44,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint and format (Biome)
         run: pnpm exec biome ci .
-      - name: Typecheck
-        run: pnpm -r typecheck
       - name: Build
         run: pnpm -r build
+      - name: Typecheck
+        run: pnpm -r typecheck
       - name: Test
         run: pnpm -r test
       - name: Validate manifest schema against conformance fixtures
