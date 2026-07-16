@@ -1,6 +1,15 @@
 /**
- * @poid/ui — Shared UI components: Reader chrome, consent dialog, progress bars.
+ * `@poid/ui` — the reader chrome, rendered outside the sandbox.
+ *
+ * The consent screen (SECURITY §5), title bar, dirty indicator, storage badge
+ * and "Stop this application" control live in the host document. The
+ * application cannot style, cover, suppress or trigger any of them.
  */
 
-/** Workspace package identifier. */
-export const PACKAGE_NAME = "@poid/ui";
+export { type ConsentManifest, type ConsentModel, consentModel } from "./consent.js";
+export {
+  type ChromeHandle,
+  type ConsentHandlers,
+  renderChrome,
+  renderConsent,
+} from "./dom.js";

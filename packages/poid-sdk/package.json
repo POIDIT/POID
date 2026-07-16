@@ -5,7 +5,8 @@
   "description": "The API injected into the sandboxed context as window.poid. Zero runtime dependencies; must stay under 10 KB minified.",
   "type": "module",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./bootstrap": "./dist/bootstrap.js"
   },
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -14,6 +15,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "esbuild": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

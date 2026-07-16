@@ -8,6 +8,9 @@ dist/
 
 # Test artifacts
 coverage/
+test-results/
+playwright-report/
+.playwright/
 
 # Editors / OS
 .DS_Store
