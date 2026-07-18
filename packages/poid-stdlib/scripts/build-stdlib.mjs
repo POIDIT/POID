@@ -69,12 +69,32 @@ async function fetchJson(url) {
 
 /** Downloads (or reuses) one pinned tarball, verifying integrity against
  * `pin` (an object holding `integrity`); extracts it and returns the
- * extracted `package/` directory. */
+ * extracted `package/` directory.
+ *
+ * The tarball digest is persisted next to the extraction (`.integrity`) so
+ * the write/verify logic runs on EVERY invocation, cache hit or not — an
+ * early return that skipped it once left closure pins empty in the catalog
+ * and broke the first cold-cache CI run. A cached extraction without its
+ * provenance file is treated as stale and refetched.
+ */
 async function materialize(name, version, pin) {
   const safe = name.replace("/", "__");
   const extractDir = join(cacheDir, `${safe}@${version}`);
   const pkgDir = join(extractDir, "package");
-  if (existsSync(pkgDir)) return pkgDir;
+  const provenance = join(extractDir, ".integrity");
+
+  if (existsSync(pkgDir) && existsSync(provenance)) {
+    const integrity = readFileSync(provenance, "utf8").trim();
+    if (write) {
+      pin.integrity = integrity;
+    } else if (pin.integrity !== integrity) {
+      throw new Error(
+        `${name}: cached tarball integrity ${integrity} does not match the pinned ${pin.integrity}`,
+      );
+    }
+    return pkgDir;
+  }
+  rmSync(extractDir, { recursive: true, force: true });
 
   const meta = await fetchJson(
     `https://registry.npmjs.org/${encodeURIComponent(name).replace("%2F", "/")}/${version}`,
@@ -110,6 +130,7 @@ async function materialize(name, version, pin) {
     if (entries.length !== 1) throw new Error(`${name}: unexpected tarball layout`);
     renameSync(join(extractDir, entries[0].name), pkgDir);
   }
+  writeFileSync(provenance, `${integrity}\n`);
   return pkgDir;
 }
 
