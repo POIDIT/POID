@@ -44,6 +44,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint and format (Biome)
         run: pnpm exec biome ci .
+      - uses: actions/cache@v4
+        with:
+          path: packages/poid-stdlib/.cache
+          key: stdlib-${{ hashFiles('packages/poid-stdlib/src/catalog.json') }}
+      - name: Standard Library reproduces its pinned checksums
+        run: pnpm --filter @poid/stdlib build:lib
       - name: Build
         run: pnpm -r build
       - name: Typecheck

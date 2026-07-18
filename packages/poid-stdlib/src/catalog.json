@@ -1,0 +1,795 @@
+{
+  "$comment": "The Standard Library catalog (ARCHITECTURE 5.2, Tier 1). A closed, curated, versioned list - NOT a package manager. Committed: pinned npm versions, npm tarball integrity, and the sha256 of every built bundle. The bundles themselves are NOT committed; scripts/build-stdlib.mjs rebuilds them deterministically from the pinned inputs and CI asserts the checksums match. `integrity` and per-specifier `sha256` are recorded by `--write` and verified by default.",
+  "esbuild": "0.25.12",
+  "packages": {
+    "react": {
+      "version": "18.3.1",
+      "integrity": "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==",
+      "specifiers": {
+        "react": {
+          "entry": "index.js",
+          "externals": [],
+          "namedExports": [
+            "Children",
+            "Component",
+            "Fragment",
+            "Profiler",
+            "PureComponent",
+            "StrictMode",
+            "Suspense",
+            "cloneElement",
+            "createContext",
+            "createElement",
+            "createRef",
+            "forwardRef",
+            "isValidElement",
+            "lazy",
+            "memo",
+            "startTransition",
+            "useCallback",
+            "useContext",
+            "useDebugValue",
+            "useDeferredValue",
+            "useEffect",
+            "useId",
+            "useImperativeHandle",
+            "useInsertionEffect",
+            "useLayoutEffect",
+            "useMemo",
+            "useReducer",
+            "useRef",
+            "useState",
+            "useSyncExternalStore",
+            "useTransition",
+            "version"
+          ],
+          "sha256": "705ffac72c31c8daa06504b943a2d554f79008f65aeed452d2965c24a8860ffa"
+        },
+        "react/jsx-runtime": {
+          "entry": "jsx-runtime.js",
+          "externals": ["react"],
+          "namedExports": ["Fragment", "jsx", "jsxs"],
+          "sha256": "f702c52e5ed85d2431fef8846eb7cbaf207bab61695faf124a179089ea15afc3"
+        }
+      },
+      "closure": {
+        "loose-envify": {
+          "version": "1.4.0",
+          "integrity": ""
+        },
+        "js-tokens": {
+          "version": "4.0.0",
+          "integrity": ""
+        }
+      }
+    },
+    "react-dom": {
+      "version": "18.3.1",
+      "integrity": "sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==",
+      "specifiers": {
+        "react-dom": {
+          "entry": "index.js",
+          "externals": ["react", "scheduler"],
+          "namedExports": [
+            "createPortal",
+            "findDOMNode",
+            "flushSync",
+            "hydrate",
+            "render",
+            "unmountComponentAtNode",
+            "version"
+          ],
+          "sha256": "c27dee435190a79fc827ef85e757577de3baf593aa5fdfe9e121fda399810387"
+        },
+        "react-dom/client": {
+          "entry": "client.js",
+          "externals": ["react", "react-dom", "scheduler"],
+          "namedExports": ["createRoot", "hydrateRoot"],
+          "sha256": "55ebcfd31e96a6a57219c92c959e5dd79e4b6f557c53b8c8257ea0e86905ea35"
+        }
+      },
+      "closure": {
+        "loose-envify": {
+          "version": "1.4.0",
+          "integrity": ""
+        },
+        "js-tokens": {
+          "version": "4.0.0",
+          "integrity": ""
+        }
+      }
+    },
+    "scheduler": {
+      "version": "0.23.2",
+      "integrity": "sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==",
+      "specifiers": {
+        "scheduler": {
+          "entry": "index.js",
+          "externals": [],
+          "sha256": "1182e5c47c1bf342ad468cdb887224d960ccb67d9e6cb84160d8f6c225c5de60"
+        }
+      },
+      "closure": {
+        "loose-envify": {
+          "version": "1.4.0",
+          "integrity": ""
+        },
+        "js-tokens": {
+          "version": "4.0.0",
+          "integrity": ""
+        }
+      }
+    },
+    "preact": {
+      "version": "10.22.0",
+      "integrity": "sha512-RRurnSjJPj4rp5K6XoP45Ui33ncb7e4H7WiOHVpjbkvqvA3U+N8Z6Qbo0AE6leGYBV66n8EhEaFixvIu3SkxFw==",
+      "specifiers": {
+        "preact": {
+          "entry": "dist/preact.module.js",
+          "externals": [],
+          "sha256": "393950fe713e145316e5669d0e5d001041e73fcdbab686b3e4eefda8e5ac0b38"
+        },
+        "preact/hooks": {
+          "entry": "hooks/dist/hooks.module.js",
+          "externals": ["preact"],
+          "sha256": "837e907dcfaefac019ea3d8fcf7baf08128e70c15a77d7848e2b3e92b306ec52"
+        },
+        "preact/jsx-runtime": {
+          "entry": "jsx-runtime/dist/jsxRuntime.module.js",
+          "externals": ["preact"],
+          "sha256": "1090b8e47930995b5c6e9adfb77186ec46b3241758ae009fa64c201ee956dc74"
+        }
+      }
+    },
+    "vue": {
+      "version": "3.4.31",
+      "integrity": "sha512-njqRrOy7W3YLAlVqSKpBebtZpDVg21FPoaq1I7f/+qqBThK9ChAIjkRWgeP6Eat+8C+iia4P3OYqpATP21BCoQ==",
+      "specifiers": {
+        "vue": {
+          "entry": "dist/vue.esm-browser.prod.js",
+          "externals": [],
+          "sha256": "3cc1c7de0f98e300129e067480b41b9c4aacf068e70abfedecbdb42336c23ce2"
+        }
+      },
+      "closure": {
+        "@vue/shared": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "@vue/runtime-dom": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "@vue/compiler-dom": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "@vue/compiler-sfc": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "@vue/server-renderer": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "@vue/compiler-ssr": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "postcss": {
+          "version": "8.5.19",
+          "integrity": ""
+        },
+        "magic-string": {
+          "version": "0.30.21",
+          "integrity": ""
+        },
+        "@babel/parser": {
+          "version": "7.29.7",
+          "integrity": ""
+        },
+        "estree-walker": {
+          "version": "2.0.2",
+          "integrity": ""
+        },
+        "source-map-js": {
+          "version": "1.2.1",
+          "integrity": ""
+        },
+        "@vue/compiler-core": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "entities": {
+          "version": "4.5.0",
+          "integrity": ""
+        },
+        "@babel/types": {
+          "version": "7.29.7",
+          "integrity": ""
+        },
+        "@babel/helper-string-parser": {
+          "version": "7.29.7",
+          "integrity": ""
+        },
+        "@babel/helper-validator-identifier": {
+          "version": "7.29.7",
+          "integrity": ""
+        },
+        "@jridgewell/sourcemap-codec": {
+          "version": "1.5.5",
+          "integrity": ""
+        },
+        "nanoid": {
+          "version": "3.3.16",
+          "integrity": ""
+        },
+        "picocolors": {
+          "version": "1.1.1",
+          "integrity": ""
+        },
+        "csstype": {
+          "version": "3.2.3",
+          "integrity": ""
+        },
+        "@vue/reactivity": {
+          "version": "3.4.31",
+          "integrity": ""
+        },
+        "@vue/runtime-core": {
+          "version": "3.4.31",
+          "integrity": ""
+        }
+      }
+    },
+    "lodash-es": {
+      "version": "4.17.21",
+      "integrity": "sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==",
+      "specifiers": {
+        "lodash-es": {
+          "entry": "lodash.js",
+          "externals": [],
+          "sha256": "fcca2dec5c510bb3e9ab56d3caac2a137f3b6de7deda9c02eae6902157a8fb6a"
+        }
+      }
+    },
+    "date-fns": {
+      "version": "3.6.0",
+      "integrity": "sha512-fRHTG8g/Gif+kSh50gaGEdToemgfj74aRX3swtiouboip5JDLAyDE9F11nHMIcvOaXeOC6D7SpNhi7uFyB7Uww==",
+      "specifiers": {
+        "date-fns": {
+          "entry": "index.mjs",
+          "externals": [],
+          "sha256": "52a9974b23c78e614e2e1d0640b4e48eb3b7a80e016aa135b932478ae613722e"
+        }
+      }
+    },
+    "zod": {
+      "version": "3.23.8",
+      "integrity": "sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==",
+      "specifiers": {
+        "zod": {
+          "entry": "lib/index.mjs",
+          "externals": [],
+          "sha256": "c8cabecf4363da35c99ce93b42d6adf114d85491eecf586db2db65f2e4f97ae2"
+        }
+      }
+    },
+    "uuid": {
+      "version": "9.0.1",
+      "integrity": "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==",
+      "specifiers": {
+        "uuid": {
+          "entry": "dist/esm-browser/index.js",
+          "externals": [],
+          "sha256": "3ff94a5402dc46b65e5645941392cb2a81869b59f91b930deca2f755d09532b1"
+        }
+      }
+    },
+    "clsx": {
+      "version": "2.1.1",
+      "integrity": "sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==",
+      "specifiers": {
+        "clsx": {
+          "entry": "dist/clsx.mjs",
+          "externals": [],
+          "sha256": "a4b06d9e94eb071f7976381a3878f0911905cc0412e0af8a75dc4443fea5267c"
+        }
+      }
+    },
+    "zustand": {
+      "version": "4.5.4",
+      "integrity": "sha512-/BPMyLKJPtFEvVL0E9E9BTUM63MNyhPGlvxk1XjrfWTUlV+BR8jufjsovHzrtR6YNcBEcL7cMHovL1n9xHawEg==",
+      "specifiers": {
+        "zustand": {
+          "entry": "esm/index.mjs",
+          "externals": ["react"],
+          "sha256": "baadbc523b0f21d19b785abc8c6c24f167afd46a00c73a8a9cdd7ffe299d3bd8"
+        },
+        "zustand/middleware": {
+          "entry": "esm/middleware.mjs",
+          "externals": ["react", "zustand"],
+          "sha256": "cd35d2a9743bdfe81c9003b956ff44d92ae1332d1c520674cd5ca657d42e721f"
+        }
+      },
+      "closure": {
+        "use-sync-external-store": {
+          "version": "1.2.0",
+          "integrity": ""
+        }
+      }
+    },
+    "marked": {
+      "version": "12.0.2",
+      "integrity": "sha512-qXUm7e/YKFoqFPYPa3Ukg9xlI5cyAtGmyEIzMfW//m6kXwCy2Ps9DYf5ioijFKQ8qyuscrHoY04iJGctu2Kg0Q==",
+      "specifiers": {
+        "marked": {
+          "entry": "lib/marked.esm.js",
+          "externals": [],
+          "sha256": "698661ffb5270b31a3932ff3a3c8d2d55c739a79e2f48c960e6b2f6caf69b7e7"
+        }
+      }
+    },
+    "dompurify": {
+      "version": "3.1.6",
+      "integrity": "sha512-cTOAhc36AalkjtBpfG6O8JimdTMWNXjiePT2xQH/ppBGi/4uIpmj8eKyIkMJErXWARyINV/sB38yf8JCLF5pbQ==",
+      "specifiers": {
+        "dompurify": {
+          "entry": "dist/purify.es.mjs",
+          "externals": [],
+          "sha256": "6a958421759897a378192b9fc37903112b5e949cec7adff1cab159534438f7a1"
+        }
+      }
+    },
+    "papaparse": {
+      "version": "5.4.1",
+      "integrity": "sha512-HipMsgJkZu8br23pW15uvo6sib6wne/4woLZPlFf3rpDyMe9ywEXUsuD7+6K9PRkJlVT51j/sCOYDKGGS3ZJrw==",
+      "specifiers": {
+        "papaparse": {
+          "entry": "papaparse.js",
+          "externals": [],
+          "namedExports": ["parse", "unparse"],
+          "stubs": ["stream"],
+          "sha256": "04b378e1f54fb3944cd43c6123894eb633d9e75ebb21add28646436e67607c7d"
+        }
+      }
+    },
+    "chart.js": {
+      "version": "4.4.3",
+      "integrity": "sha512-qK1gkGSRYcJzqrrzdR6a+I0vQ4/R+SoODXyAjscQ/4mzuNzySaMCd+hyVxitSY1+L2fjPD1Gbn+ibNqRmwQeLw==",
+      "specifiers": {
+        "chart.js": {
+          "entry": "dist/chart.js",
+          "externals": [],
+          "sha256": "34c4ec8827bd56c28daa13fe110801c75f18003e1b29235fb6500a602c9fb4a9"
+        },
+        "chart.js/auto": {
+          "entry": "auto/auto.js",
+          "externals": ["chart.js"],
+          "sha256": "ff45077fbfbe5ec57ef1458ffedcd32d8764ca0104d5c66f08a17d3746abd381"
+        }
+      },
+      "closure": {
+        "@kurkle/color": {
+          "version": "0.3.4",
+          "integrity": ""
+        }
+      }
+    },
+    "d3": {
+      "version": "7.9.0",
+      "integrity": "sha512-e1U46jVP+w7Iut8Jt8ri1YsPOvFpg46k+K8TpCb0P+zjCkjkPnV7WzfDJzMHy1LnA+wj5pLT1wjO901gLXeEhA==",
+      "specifiers": {
+        "d3": {
+          "entry": "src/index.js",
+          "externals": [],
+          "sha256": "9f8ce30dfe4c40bfe1ebbe471fd57b2c326366e4116fe6fc819c082d5d15a605"
+        }
+      },
+      "closure": {
+        "d3-dsv": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-geo": {
+          "version": "3.1.1",
+          "integrity": ""
+        },
+        "d3-axis": {
+          "version": "3.0.0",
+          "integrity": ""
+        },
+        "d3-drag": {
+          "version": "3.0.0",
+          "integrity": ""
+        },
+        "d3-ease": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-path": {
+          "version": "3.1.0",
+          "integrity": ""
+        },
+        "d3-time": {
+          "version": "3.1.0",
+          "integrity": ""
+        },
+        "d3-zoom": {
+          "version": "3.0.0",
+          "integrity": ""
+        },
+        "d3-array": {
+          "version": "3.2.4",
+          "integrity": ""
+        },
+        "d3-brush": {
+          "version": "3.0.0",
+          "integrity": ""
+        },
+        "d3-chord": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-color": {
+          "version": "3.1.0",
+          "integrity": ""
+        },
+        "d3-fetch": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-force": {
+          "version": "3.0.0",
+          "integrity": ""
+        },
+        "d3-scale": {
+          "version": "4.0.2",
+          "integrity": ""
+        },
+        "d3-shape": {
+          "version": "3.2.0",
+          "integrity": ""
+        },
+        "d3-timer": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-format": {
+          "version": "3.1.2",
+          "integrity": ""
+        },
+        "d3-random": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-contour": {
+          "version": "4.0.2",
+          "integrity": ""
+        },
+        "d3-polygon": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-delaunay": {
+          "version": "6.0.4",
+          "integrity": ""
+        },
+        "d3-dispatch": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-quadtree": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-hierarchy": {
+          "version": "3.1.2",
+          "integrity": ""
+        },
+        "d3-selection": {
+          "version": "3.0.0",
+          "integrity": ""
+        },
+        "d3-transition": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-interpolate": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-time-format": {
+          "version": "4.1.0",
+          "integrity": ""
+        },
+        "d3-scale-chromatic": {
+          "version": "3.1.0",
+          "integrity": ""
+        },
+        "delaunator": {
+          "version": "5.1.0",
+          "integrity": ""
+        },
+        "robust-predicates": {
+          "version": "3.0.3",
+          "integrity": ""
+        },
+        "internmap": {
+          "version": "2.0.3",
+          "integrity": ""
+        },
+        "commander": {
+          "version": "7.2.0",
+          "integrity": ""
+        },
+        "iconv-lite": {
+          "version": "0.6.3",
+          "integrity": ""
+        },
+        "rw": {
+          "version": "1.3.3",
+          "integrity": ""
+        },
+        "safer-buffer": {
+          "version": "2.1.2",
+          "integrity": ""
+        }
+      }
+    },
+    "three": {
+      "version": "0.165.0",
+      "integrity": "sha512-cc96IlVYGydeceu0e5xq70H8/yoVT/tXBxV/W8A/U6uOq7DXc4/s1Mkmnu6SqoYGhSRWWYFOhVwvq6V0VtbplA==",
+      "specifiers": {
+        "three": {
+          "entry": "build/three.module.js",
+          "externals": [],
+          "sha256": "d9d79a2cb23bdcfb82949662d5c97f11fc1e0144665691588708ce9aaf115fc3"
+        }
+      }
+    },
+    "framer-motion": {
+      "version": "11.2.10",
+      "integrity": "sha512-/gr3PLZUVFCc86a9MqCUboVrALscrdluzTb3yew+2/qKBU8CX6nzs918/SRBRCqaPbx0TZP10CB6yFgK2C5cYQ==",
+      "specifiers": {
+        "framer-motion": {
+          "entry": "dist/es/index.mjs",
+          "externals": ["react", "react-dom"],
+          "sha256": "ab0d3fff408f589390f9ef39f52107fb7e13cc6a37fcd825133cf1fe4c661485"
+        }
+      },
+      "closure": {
+        "tslib": {
+          "version": "2.8.1",
+          "integrity": ""
+        }
+      }
+    },
+    "recharts": {
+      "version": "2.12.7",
+      "integrity": "sha512-hlLJMhPQfv4/3NBSAyq3gzGg4h2v69RJh6KU7b3pXYNNAELs9kEoXOjbkxdXpALqKBoVmVptGfLpxdaVYqjmXQ==",
+      "specifiers": {
+        "recharts": {
+          "entry": "es6/index.js",
+          "externals": ["clsx", "react", "react-dom"],
+          "sha256": "583c952786ed742e83caa042ba61a414713a71e2e7d40a3fff0b32717b31f8c1"
+        }
+      },
+      "closure": {
+        "lodash": {
+          "version": "4.18.1",
+          "integrity": ""
+        },
+        "react-is": {
+          "version": "16.13.1",
+          "integrity": ""
+        },
+        "react-smooth": {
+          "version": "4.0.4",
+          "integrity": ""
+        },
+        "eventemitter3": {
+          "version": "4.0.7",
+          "integrity": ""
+        },
+        "recharts-scale": {
+          "version": "0.4.5",
+          "integrity": ""
+        },
+        "tiny-invariant": {
+          "version": "1.3.3",
+          "integrity": ""
+        },
+        "victory-vendor": {
+          "version": "36.9.2",
+          "integrity": ""
+        },
+        "d3-ease": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "d3-time": {
+          "version": "3.1.0",
+          "integrity": ""
+        },
+        "d3-array": {
+          "version": "3.2.4",
+          "integrity": ""
+        },
+        "d3-scale": {
+          "version": "4.0.2",
+          "integrity": ""
+        },
+        "d3-shape": {
+          "version": "3.2.0",
+          "integrity": ""
+        },
+        "d3-timer": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "@types/d3-ease": {
+          "version": "3.0.2",
+          "integrity": ""
+        },
+        "@types/d3-time": {
+          "version": "3.0.4",
+          "integrity": ""
+        },
+        "d3-interpolate": {
+          "version": "3.0.1",
+          "integrity": ""
+        },
+        "@types/d3-array": {
+          "version": "3.2.2",
+          "integrity": ""
+        },
+        "@types/d3-scale": {
+          "version": "4.0.9",
+          "integrity": ""
+        },
+        "@types/d3-shape": {
+          "version": "3.1.8",
+          "integrity": ""
+        },
+        "@types/d3-timer": {
+          "version": "3.0.2",
+          "integrity": ""
+        },
+        "@types/d3-interpolate": {
+          "version": "3.0.4",
+          "integrity": ""
+        },
+        "@types/d3-color": {
+          "version": "3.1.3",
+          "integrity": ""
+        },
+        "@types/d3-path": {
+          "version": "3.1.1",
+          "integrity": ""
+        },
+        "d3-color": {
+          "version": "3.1.0",
+          "integrity": ""
+        },
+        "d3-path": {
+          "version": "3.1.0",
+          "integrity": ""
+        },
+        "d3-format": {
+          "version": "3.1.2",
+          "integrity": ""
+        },
+        "d3-time-format": {
+          "version": "4.1.0",
+          "integrity": ""
+        },
+        "internmap": {
+          "version": "2.0.3",
+          "integrity": ""
+        },
+        "decimal.js-light": {
+          "version": "2.5.1",
+          "integrity": ""
+        },
+        "fast-equals": {
+          "version": "5.4.1",
+          "integrity": ""
+        },
+        "prop-types": {
+          "version": "15.8.1",
+          "integrity": ""
+        },
+        "react-transition-group": {
+          "version": "4.4.5",
+          "integrity": ""
+        },
+        "@babel/runtime": {
+          "version": "7.29.7",
+          "integrity": ""
+        },
+        "dom-helpers": {
+          "version": "5.2.1",
+          "integrity": ""
+        },
+        "loose-envify": {
+          "version": "1.4.0",
+          "integrity": ""
+        },
+        "js-tokens": {
+          "version": "4.0.0",
+          "integrity": ""
+        },
+        "csstype": {
+          "version": "3.2.3",
+          "integrity": ""
+        },
+        "object-assign": {
+          "version": "4.1.1",
+          "integrity": ""
+        }
+      }
+    },
+    "lucide-react": {
+      "version": "0.400.0",
+      "integrity": "sha512-rpp7pFHh3Xd93KHixNgB0SqThMHpYNzsGUu69UaQbSZ75Q/J3m5t6EhKyMT3m4w2WOxmJ2mY0tD3vebnXqQryQ==",
+      "specifiers": {
+        "lucide-react": {
+          "entry": "dist/esm/lucide-react.js",
+          "externals": ["react"],
+          "sha256": "883d4c9a237941c0e896ce94328256ccb24169adeae8ab9227f2869143830248"
+        }
+      }
+    },
+    "xlsx": {
+      "version": "0.18.5",
+      "integrity": "sha512-dmg3LCjBPHZnQp5/F/+nnTa+miPJxUXB6vtk42YjBBKayDNagxGEeIdWApkYPOf3Z3pm3k62Knjzp7lMeTEtFQ==",
+      "specifiers": {
+        "xlsx": {
+          "entry": "xlsx.mjs",
+          "externals": [],
+          "sha256": "112e7dbbba197962dda1afca2ff56c4e2f1a6bb945d63b8494c9519e4d28929d"
+        }
+      },
+      "closure": {
+        "cfb": {
+          "version": "1.2.2",
+          "integrity": ""
+        },
+        "ssf": {
+          "version": "0.11.2",
+          "integrity": ""
+        },
+        "wmf": {
+          "version": "1.0.2",
+          "integrity": ""
+        },
+        "word": {
+          "version": "0.3.0",
+          "integrity": ""
+        },
+        "crc-32": {
+          "version": "1.2.2",
+          "integrity": ""
+        },
+        "adler-32": {
+          "version": "1.3.1",
+          "integrity": ""
+        },
+        "codepage": {
+          "version": "1.15.0",
+          "integrity": ""
+        },
+        "frac": {
+          "version": "1.1.2",
+          "integrity": ""
+        }
+      }
+    }
+  },
+  "excluded": {
+    "svelte": "needs the Svelte compiler at build time; planned, tracked in the M06 PR",
+    "tailwindcss": "not a runtime import - handled by the Converter as a browser build; planned",
+    "sql.js": "ships a .wasm sidecar that needs an embedding shim; planned"
+  }
+}
