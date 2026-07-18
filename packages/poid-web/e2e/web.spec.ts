@@ -195,6 +195,11 @@ test.describe("definition of done", () => {
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.waitForLoadState("networkidle");
 
+    // The build stamped a real digest into the cache name — a lingering
+    // `__BUILD_HASH__` placeholder would freeze the shell cache forever.
+    const cacheNames = await page.evaluate(() => caches.keys());
+    expect(cacheNames).toEqual([expect.stringMatching(/^poid-web-[0-9a-f]{16}$/)]);
+
     await context.setOffline(true);
     try {
       await page.reload();

@@ -68,7 +68,11 @@ const hash = createHash("sha256");
 for (const f of ["app.js", "index.html", "styles.css", "wasm/poid_wasm_bg.wasm"]) {
   hash.update(readFileSync(join(site, f)));
 }
-const sw = readFileSync(join(site, "sw.js"), "utf8").replace(
+// replaceAll: the placeholder also appears in the file's doc comment, and a
+// single replace() would stamp the comment instead of the VERSION constant —
+// leaving sw.js byte-identical across deploys, so browsers would never
+// refresh the cached shell.
+const sw = readFileSync(join(site, "sw.js"), "utf8").replaceAll(
   "__BUILD_HASH__",
   hash.digest("hex").slice(0, 16),
 );
