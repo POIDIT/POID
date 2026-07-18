@@ -51,7 +51,10 @@ if (esbuildVersion !== catalog.esbuild) {
   console.error(`esbuild ${esbuildVersion} != catalog pin ${catalog.esbuild}`);
   process.exit(1);
 }
+// On Windows the package's bin entry is a JS launcher (run via node); on
+// Linux/macOS the installer replaces it with the native executable itself.
 const esbuildBin = require.resolve("esbuild/bin/esbuild");
+const esbuildCmd = process.platform === "win32" ? [process.execPath, esbuildBin] : [esbuildBin];
 
 function sha256(buf) {
   return createHash("sha256").update(buf).digest("hex");
@@ -347,7 +350,8 @@ function bundleSpecifier(pkgDir, specifier, spec) {
   }
   // cwd = the extracted package dir, so path comments in the unminified
   // output are package-relative and byte-identical on every machine.
-  execFileSync(process.execPath, [esbuildBin, ...flags], { cwd: pkgDir, stdio: "pipe" });
+  const [cmd, ...prefix] = esbuildCmd;
+  execFileSync(cmd, [...prefix, ...flags], { cwd: pkgDir, stdio: "pipe" });
   const fixed = fixExternalRequires(readFileSync(outfile, "utf8"), spec.externals);
   writeFileSync(outfile, fixed);
   return Buffer.from(fixed);

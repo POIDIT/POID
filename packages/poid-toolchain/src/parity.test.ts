@@ -67,12 +67,13 @@ function buildViaCliFlags(): { js: Buffer; css: Buffer } {
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, content);
   }
+  // On Windows the package's bin entry is a JS launcher (run via node); on
+  // Linux/macOS the installer replaces it with the native executable itself.
   const bin = require.resolve("esbuild/bin/esbuild");
-  const result = spawnSync(
-    process.execPath,
-    [bin, "src/main.ts", ...contractCliFlags(), "--outdir=out"],
-    { cwd: dir },
-  );
+  const [cmd, ...prefix] = process.platform === "win32" ? [process.execPath, bin] : [bin];
+  const result = spawnSync(cmd, [...prefix, "src/main.ts", ...contractCliFlags(), "--outdir=out"], {
+    cwd: dir,
+  });
   expect(result.status, String(result.stderr)).toBe(0);
   return {
     js: readFileSync(join(dir, "out", "main.js")),
