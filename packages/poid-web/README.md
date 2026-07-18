@@ -46,14 +46,20 @@ pnpm --filter @poid/web e2e           # Playwright: conformance fixtures in a re
                                       # Chromium, zero-network proof, offline proof
 ```
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare)
 
-The site is plain static output. Point Pages at this repo with:
+The site is plain static output; either Cloudflare surface works. No
+Functions, no KV, no server code — a strict CDN deployment.
 
-- **Build command:** `pnpm install --frozen-lockfile && pnpm --filter @poid/web build:wasm && pnpm --filter @poid/web build:site`
+**Workers (Import a repository)** — uses `wrangler.jsonc` in this package
+(an assets-only Worker, no script). In the Worker's *Settings → Build*:
+
+- **Root directory:** `/` (the pnpm workspace install runs at the repo root)
+- **Build command:**
+  `rustup target add wasm32-unknown-unknown && pnpm install --frozen-lockfile && pnpm --filter @poid/web build:wasm && pnpm --filter @poid/web build:site`
+- **Deploy command:** `npx wrangler deploy --config packages/poid-web/wrangler.jsonc`
+
+**Pages (Connect to Git)** — no wrangler file needed:
+
+- **Build command:** same as above
 - **Build output directory:** `packages/poid-web/site`
-- **Environment:** Rust via `rustup` is preinstalled on Pages build images;
-  add `rustup target add wasm32-unknown-unknown` before the build command if
-  the image lacks the target.
-
-No Functions, no KV, no server code — a strict CDN deployment.
