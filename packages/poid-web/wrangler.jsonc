@@ -1,0 +1,16 @@
+{
+  // Cloudflare Workers deployment of the Web Reader: a static-assets-only
+  // Worker — no script, no server compute (M05: the server is a CDN).
+  //
+  // Dashboard build settings (Workers Builds, monorepo):
+  //   Root directory:  /            (pnpm workspace install runs at the root)
+  //   Build command:   rustup target add wasm32-unknown-unknown && pnpm install --frozen-lockfile && pnpm --filter @poid/web build:wasm && pnpm --filter @poid/web build:site
+  //   Deploy command:  npx wrangler deploy --config packages/poid-web/wrangler.jsonc
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "poiddev",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./site",
+    "not_found_handling": "404-page"
+  }
+}
