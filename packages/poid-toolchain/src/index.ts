@@ -21,3 +21,14 @@ export {
   EngineVersionError,
   type EsbuildApi,
 } from "./engine.js";
+
+export {
+  type DownloadPlan,
+  downloadAndBundle,
+  IntegrityError,
+  OfflinePolicyError,
+  planDownload,
+  type ResolvedDependency,
+  type ResolverPolicy,
+} from "./resolver.js";
+export { gunzip, type TarEntry, untar } from "./tar.js";
