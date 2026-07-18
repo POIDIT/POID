@@ -645,8 +645,10 @@ dependencies = [
 name = "poid-wasm"
 version = "0.0.1"
 dependencies = [
+ "poid-convert",
  "poid-core",
  "poid-fixtures",
+ "serde",
  "serde_json",
  "uuid",
  "wasm-bindgen",
