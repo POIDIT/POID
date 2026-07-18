@@ -517,3 +517,57 @@ fn find_local_esbuild() -> Option<PathBuf> {
     }
     candidates.into_iter().find(|p| p.is_file())
 }
+
+#[test]
+fn python_wheels_pack_under_the_container_deps_tree() {
+    let tmp = tempfile::tempdir().unwrap();
+    let demo = tmp.path().join("pydemo");
+    let out = tmp.path().join("pydemo.poid");
+    poid()
+        .args(["init", "--template", "python"])
+        .arg(&demo)
+        .assert()
+        .success();
+    // A stand-in wheel: wheels are ZIPs; content is irrelevant to packing.
+    std::fs::create_dir_all(demo.join("deps")).unwrap();
+    let wheel = demo.join("deps/demo-1.0.0-py3-none-any.whl");
+    let cursor = std::io::Cursor::new(Vec::new());
+    let mut zipw = zip::ZipWriter::new(cursor);
+    zipw.start_file::<_, ()>("demo/__init__.py", zip::write::FileOptions::default())
+        .unwrap();
+    std::io::Write::write_all(&mut zipw, b"VALUE = 1\n").unwrap();
+    let bytes = zipw.finish().unwrap().into_inner();
+    std::fs::write(&wheel, bytes).unwrap();
+
+    poid()
+        .arg("pack")
+        .arg(&demo)
+        .arg("-o")
+        .arg(&out)
+        .assert()
+        .success();
+    poid().arg("validate").arg(&out).assert().success();
+
+    let v = json_stdout(
+        poid()
+            .args(["--json", "inspect"])
+            .arg(&out)
+            .assert()
+            .success(),
+    );
+    assert_eq!(v["manifest"]["runtime"]["profile"], "web+python");
+    assert!(
+        v["manifest"]["runtime"]["engines"]["pyodide"].is_string(),
+        "the engine range travels in the manifest"
+    );
+    let paths: Vec<&str> = v["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["path"].as_str().unwrap())
+        .collect();
+    assert!(
+        paths.contains(&"deps/demo-1.0.0-py3-none-any.whl"),
+        "wheels live at the container root deps/, got {paths:?}"
+    );
+}

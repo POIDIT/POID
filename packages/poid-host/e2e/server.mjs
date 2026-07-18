@@ -5,6 +5,7 @@
  * real reader injects it into a container.
  */
 
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,10 +45,49 @@ const INDEX = `<!doctype html>
 
 const harnessJs = await build();
 
+// The python tier: the verified engine (the reader's asset) and the DoD
+// fixture's wheels (the container's deps/ tree). Served only when the engine
+// cache exists — the spec skips itself otherwise.
+const repoRoot = join(root, "..", "..");
+const engineDir = join(repoRoot, "engines", ".cache", "pyodide");
+const engineManifestPath = join(repoRoot, "engines", "pyodide.json");
+const fixtureDir = join(here, "fixtures", "python-chart");
+
+function serveFile(res, path, type) {
+  try {
+    const body = readFileSync(path);
+    res.writeHead(200, { "content-type": type });
+    res.end(body);
+  } catch {
+    res.writeHead(404, { "content-type": "text/plain" });
+    res.end("not found");
+  }
+}
+
+function typeFor(path) {
+  if (path.endsWith(".js") || path.endsWith(".mjs")) return "text/javascript; charset=utf-8";
+  if (path.endsWith(".json")) return "application/json; charset=utf-8";
+  if (path.endsWith(".wasm")) return "application/wasm";
+  return "application/octet-stream";
+}
+
 const server = createServer((req, res) => {
-  if (req.url === "/harness.js") {
+  const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
+  if (url === "/harness.js") {
     res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
     res.end(harnessJs);
+    return;
+  }
+  if (url === "/engine-manifest.json") {
+    serveFile(res, engineManifestPath, "application/json; charset=utf-8");
+    return;
+  }
+  if (url.startsWith("/engine/") && !url.includes("..")) {
+    serveFile(res, join(engineDir, url.slice("/engine/".length)), typeFor(url));
+    return;
+  }
+  if (url.startsWith("/python-fixture/") && !url.includes("..")) {
+    serveFile(res, join(fixtureDir, url.slice("/python-fixture/".length)), typeFor(url));
     return;
   }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });

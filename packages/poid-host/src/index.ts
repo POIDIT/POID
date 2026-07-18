@@ -24,6 +24,12 @@ export {
 } from "./container-server.js";
 export { buildCsp, type CspOptions, SANDBOX_TOKENS } from "./csp.js";
 export { type DataEngine, InMemoryEngine, type Scope } from "./engine.js";
+export {
+  EngineIntegrityError,
+  type EngineManifest,
+  engineSatisfies,
+  verifyEngine,
+} from "./engines.js";
 export { type GuardResult, guardRequest, SCOPE_FIELDS } from "./guard.js";
 export { type MountOptions, mountReader, type ReaderHandle } from "./reader.js";
 export { Watchdog, type WatchdogClock, type WatchdogOptions } from "./watchdog.js";

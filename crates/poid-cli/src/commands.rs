@@ -23,7 +23,8 @@ use crate::Template;
 pub struct BuiltApp {
     /// Files under `app/` (paths relative to `app/`).
     app_files: Vec<ProjectFile>,
-    /// Files under `data/` (paths already prefixed).
+    /// Root-level passthrough trees (`data/`, `deps/` — paths already
+    /// prefixed).
     data_files: Vec<ProjectFile>,
     /// `pkg@version` records of everything bundled from the Standard Library.
     bundled_deps: Vec<String>,
@@ -38,9 +39,15 @@ pub struct BuiltApp {
 /// (M06 decision 1: readers execute inline output until the synthetic
 /// origin, issue #5). This is the one build path `pack` and `convert` share.
 fn build_app(files: Vec<ProjectFile>, title: &str) -> Result<BuiltApp, CmdError> {
-    let (data_files, rest): (Vec<_>, Vec<_>) = files
-        .into_iter()
-        .partition(|f| f.rel == "data" || f.rel.starts_with("data/"));
+    // `data/` (embedded state, SPEC §6) and `deps/` (bundled runtime
+    // dependencies — Python wheels, SPEC §2.2) travel at the container root,
+    // not under `app/`.
+    let (data_files, rest): (Vec<_>, Vec<_>) = files.into_iter().partition(|f| {
+        f.rel == "data"
+            || f.rel.starts_with("data/")
+            || f.rel == "deps"
+            || f.rel.starts_with("deps/")
+    });
 
     let sources: Vec<poid_convert::SourceFile> = rest
         .iter()
