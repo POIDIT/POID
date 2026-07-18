@@ -276,6 +276,35 @@ Languages other than JavaScript are supported via WebAssembly engines **provided
 
 Readers **MUST** verify engine integrity (checksum) before use. Readers **MAY** download a missing engine from a signed registry, **with user consent**. Applications **MUST NOT** be able to trigger engine download.
 
+#### 5.4.1 Engine manifest format — **DRAFT, proposed in M06, not yet normative**
+
+> **Status note:** §5.4 requires checksum verification but does not define what an engine manifest looks like. M06 needed a concrete shape to implement `web+python`, so this subsection documents what was built (`engines/pyodide.json` in this repository, verified by `packages/poid-host/src/engines.ts`). It is a **proposal**, not yet a ratified part of the format — flagged here per CONVENTIONS ("the spec and the code must never quietly diverge") rather than folded into the normative text silently. The maintainer should promote it to a `MUST`, amend it, or reject it before a second independent reader implementation relies on it.
+
+A conformant engine ships alongside an **engine manifest**, a JSON document with:
+
+```jsonc
+{
+  "name": "pyodide",              // engine identifier, matches runtime.engines keys
+  "version": "0.26.4",            // exact version this reader ships
+  "compatible": ">=0.26 <0.27",   // the runtime.engines range this build satisfies
+  "source": "https://…",          // where the reader's build obtained the engine (informative)
+  "sourceSha256": "…",            // sha256 of the upstream archive (build-time provenance)
+  "files": {                      // every file the engine loader executes or reads
+    "pyodide.js": "…sha256…",
+    "pyodide.asm.wasm": "…sha256…"
+    // …
+  }
+}
+```
+
+**Verification (normative under this proposal):** before executing any engine file, the reader **MUST** fetch and checksum **every** entry in `files` and compare it against the pinned value. A reader that begins executing before every file is verified does not satisfy §5.4's checksum requirement — verify-then-run, not run-then-check.
+
+**Version matching:** the reader compares its engine manifest's `version` against the application manifest's `runtime.engines.<name>` range using standard semver range semantics (comparators, `^`, `~`, `||`). An unparseable range or version **MUST** be treated as a mismatch, never as a silent pass.
+
+**Provenance vs. runtime trust:** `source` / `sourceSha256` record how the reader's *build* obtained the engine (useful for audits and reproducible reader builds) and are not consulted at load time — only `files` gates execution. This mirrors the Standard Library catalog (§5.2): a build-time provenance record plus a runtime-verified checksum set.
+
+This repository's reference instance is `engines/pyodide.json`; `scripts/fetch-pyodide.mjs` reproduces it deterministically from the pinned `source`.
+
 ---
 
 ## 6. Storage

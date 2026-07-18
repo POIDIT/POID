@@ -10,6 +10,25 @@ use crate::output::{err, CmdError};
 /// Directories never packed into a container.
 const SKIP_DIRS: [&str; 3] = ["node_modules", "target", "dist"];
 
+/// Root-level authoring/tooling files a real `create-vite`-style project
+/// carries that have no place in a POID: the recipient never builds
+/// anything, so `vite.config.ts` etc. are noise at best — and at worst their
+/// bare imports (`import { defineConfig } from "vite"`) would be
+/// misidentified as application dependencies and block the whole pack.
+/// Matched by exact name at the project root only (a source file the app
+/// actually imports named e.g. `src/tailwind.config.ts` is untouched).
+const SKIP_ROOT_FILES: [&str; 9] = [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "tsconfig.json",
+    "vite.config.ts",
+    "vite.config.js",
+    "eslint.config.js",
+    "postcss.config.js",
+];
+
 /// A project file: path relative to the project root (forward slashes) plus
 /// its content.
 #[derive(Clone)]
@@ -44,7 +63,11 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<ProjectFile>) -> Result<(), CmdEr
             walk(root, &path, out)?;
             continue;
         }
-        if name == "poid.json" && path.parent() == Some(root) {
+        let at_root = path.parent() == Some(root);
+        if name == "poid.json" && at_root {
+            continue;
+        }
+        if at_root && SKIP_ROOT_FILES.contains(&name.as_str()) {
             continue;
         }
         if name.ends_with(".poid") {
@@ -395,5 +418,65 @@ import url from "https://example.com/mod.js";
     fn non_source_files_are_not_scanned() {
         let files = [src("notes.md", r#"import fake from "react""#)];
         assert!(bare_imports(&files).is_empty());
+    }
+
+    #[test]
+    fn a_real_vite_project_ships_tooling_config_that_collect_files_must_skip() {
+        // A create-vite output really does import "vite" and
+        // "@vitejs/plugin-react" from its config — files no reader ever
+        // builds. Before SKIP_ROOT_FILES, these would have poisoned
+        // bare_imports and blocked every real create-vite project from
+        // packing at all.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::write(dir.join("package.json"), r#"{"name":"demo"}"#).unwrap();
+        std::fs::write(
+            dir.join("vite.config.ts"),
+            "import { defineConfig } from \"vite\";\nimport react from \"@vitejs/plugin-react\";\nexport default defineConfig({ plugins: [react()] });\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("tsconfig.json"), "{}").unwrap();
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(
+            dir.join("src/main.tsx"),
+            "import App from \"./App\";\nconsole.log(App);\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("src/App.tsx"),
+            "export default function App() {}\n",
+        )
+        .unwrap();
+
+        let Ok(files) = collect_files(dir) else {
+            panic!("collect_files must succeed");
+        };
+        let rels: Vec<&str> = files.iter().map(|f| f.rel.as_str()).collect();
+        assert!(!rels.contains(&"vite.config.ts"), "got {rels:?}");
+        assert!(!rels.contains(&"package.json"), "got {rels:?}");
+        assert!(!rels.contains(&"tsconfig.json"), "got {rels:?}");
+        assert!(rels.contains(&"src/main.tsx"));
+        assert!(rels.contains(&"src/App.tsx"));
+
+        // And critically: no bare import from the excluded config leaks in.
+        let bare = bare_imports(&files);
+        assert!(bare.is_empty(), "got {bare:?}");
+    }
+
+    #[test]
+    fn a_source_file_that_happens_to_share_a_config_filename_is_kept() {
+        // The exclusion is root-only and by exact relative depth, not by
+        // basename anywhere — a nested file the app actually imports must
+        // survive.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(dir.join("src/vite.config.ts"), "export const x = 1;\n").unwrap();
+
+        let Ok(files) = collect_files(dir) else {
+            panic!("collect_files must succeed");
+        };
+        let rels: Vec<&str> = files.iter().map(|f| f.rel.as_str()).collect();
+        assert!(rels.contains(&"src/vite.config.ts"), "got {rels:?}");
     }
 }

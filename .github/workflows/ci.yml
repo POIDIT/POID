@@ -15,6 +15,27 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (esbuild sidecar for the M06 DoD tests)
+        run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: packages/poid-stdlib/.cache
+          key: stdlib-${{ hashFiles('packages/poid-stdlib/src/catalog.json') }}
+      - name: Standard Library (M06 DoD tests need it on disk)
+        run: pnpm --filter @poid/stdlib build:lib
+      - uses: actions/cache@v4
+        with:
+          path: engines/.cache
+          key: pyodide-${{ hashFiles('engines/pyodide.json') }}
+      - name: Pyodide engine + the Python DoD fixture's wheels
+        run: |
+          node scripts/fetch-pyodide.mjs
+          node scripts/fetch-wheels.mjs packages/poid-host/e2e/fixtures/python-chart
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
@@ -83,9 +104,17 @@ jobs:
         run: pnpm -r build
       - name: Build the Web Reader validation core (WASM)
         run: pnpm --filter @poid/web build:wasm
+      - uses: actions/cache@v4
+        with:
+          path: engines/.cache
+          key: pyodide-${{ hashFiles('engines/pyodide.json') }}
+      - name: Pyodide engine + the Python DoD fixture's wheels
+        run: |
+          node scripts/fetch-pyodide.mjs
+          node scripts/fetch-wheels.mjs packages/poid-host/e2e/fixtures/python-chart
       - name: Install Chromium
         run: pnpm --filter @poid/host exec playwright install --with-deps chromium
-      - name: Sandbox boundary e2e
+      - name: Sandbox boundary e2e (includes the offline Python DoD proof)
         run: pnpm --filter @poid/host e2e
       - name: Web Reader e2e (conformance, zero-network, offline)
         run: pnpm --filter @poid/web e2e
