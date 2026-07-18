@@ -1,8 +1,8 @@
 {
-  "name": "@poid/toolchain",
+  "name": "@poid/stdlib",
   "version": "0.0.1",
   "private": true,
-  "description": "In-app build pipeline: esbuild-wasm, the Standard Library and the dependency Resolver. No Node.js anywhere in the product.",
+  "description": "The Standard Library: a closed, curated, versioned set of pre-bundled ESM libraries shipped with Studio. Not a package manager.",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
@@ -10,17 +10,15 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:lib": "node scripts/build-stdlib.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "esbuild-wasm": "0.25.12"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "0.25.12",
+    "tar": "^7.4.0",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "@poid/stdlib": "workspace:*"
+    "vitest": "catalog:"
   }
 }

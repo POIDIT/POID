@@ -13,8 +13,188 @@ use serde_json::json;
 
 use crate::output::{err, human_size, CmdError, Report};
 use crate::project::{self, ProjectFile};
+use crate::stdlib;
 use crate::templates;
 use crate::Template;
+
+/// A built application: the files destined for `app/`, the passthrough
+/// `data/` tree, and the audit trail for `runtime.toolchain` /
+/// `runtime.bundled_deps`.
+pub struct BuiltApp {
+    /// Files under `app/` (paths relative to `app/`).
+    app_files: Vec<ProjectFile>,
+    /// Root-level passthrough trees (`data/`, `deps/` — paths already
+    /// prefixed).
+    data_files: Vec<ProjectFile>,
+    /// `pkg@version` records of everything bundled from the Standard Library.
+    bundled_deps: Vec<String>,
+    /// Sidecar version, when a build ran.
+    esbuild_version: Option<String>,
+    /// The final HTML document (also inside `app_files`), for inference.
+    index_html: Option<String>,
+}
+
+/// Classifies the project, resolves Tier 1 (Standard Library), builds when
+/// sources need building, and inlines the result into the HTML document
+/// (M06 decision 1: readers execute inline output until the synthetic
+/// origin, issue #5). This is the one build path `pack` and `convert` share.
+fn build_app(files: Vec<ProjectFile>, title: &str) -> Result<BuiltApp, CmdError> {
+    // `data/` (embedded state, SPEC §6) and `deps/` (bundled runtime
+    // dependencies — Python wheels, SPEC §2.2) travel at the container root,
+    // not under `app/`.
+    let (data_files, rest): (Vec<_>, Vec<_>) = files.into_iter().partition(|f| {
+        f.rel == "data"
+            || f.rel.starts_with("data/")
+            || f.rel == "deps"
+            || f.rel.starts_with("deps/")
+    });
+
+    let sources: Vec<poid_convert::SourceFile> = rest
+        .iter()
+        .map(|f| poid_convert::SourceFile::new(f.rel.clone(), f.content.clone()))
+        .collect();
+    let shape = poid_convert::classify(&sources);
+
+    // Static content: pack as-is; a lone document becomes index.html.
+    if matches!(
+        shape.kind,
+        poid_convert::InputKind::Static | poid_convert::InputKind::SingleHtml
+    ) {
+        let mut app_files = rest;
+        if let (poid_convert::InputKind::SingleHtml, Some(html)) = (shape.kind, &shape.html) {
+            for f in &mut app_files {
+                if &f.rel == html {
+                    f.rel = "index.html".to_owned();
+                }
+            }
+        }
+        let index_html = app_files
+            .iter()
+            .find(|f| f.rel == "index.html")
+            .and_then(|f| String::from_utf8(f.content.clone()).ok());
+        return Ok(BuiltApp {
+            app_files,
+            data_files,
+            bundled_deps: Vec::new(),
+            esbuild_version: None,
+            index_html,
+        });
+    }
+
+    // A build is needed: resolve Tier 1, stage, bundle, inline.
+    let mut requested: Vec<String> = project::bare_imports(&rest).into_iter().collect();
+    if shape.uses_jsx && !requested.iter().any(|s| s == "react/jsx-runtime") {
+        // The automatic JSX runtime imports `react/jsx-runtime` even though
+        // no source names it.
+        requested.push("react/jsx-runtime".to_owned());
+    }
+    let mut staged: Vec<ProjectFile> = rest.clone();
+    let entry = match shape.kind {
+        poid_convert::InputKind::Artifact => {
+            let component = shape.entry.clone().unwrap_or_default();
+            let stem = component.trim_end_matches(".tsx").trim_end_matches(".jsx");
+            staged.push(ProjectFile {
+                rel: "__poid_entry.jsx".to_owned(),
+                content: artifact_entry(stem).into_bytes(),
+            });
+            for spec in ["react", "react/jsx-runtime", "react-dom/client"] {
+                if !requested.iter().any(|s| s == spec) {
+                    requested.push(spec.to_owned());
+                }
+            }
+            "__poid_entry.jsx".to_owned()
+        }
+        _ => shape.entry.clone().ok_or_else(|| {
+            err(
+                "bundle-entry-missing",
+                format!(
+                    "this project has sources to build but no entry file; looked for {}",
+                    poid_convert::ENTRY_CANDIDATES.join(", ")
+                ),
+            )
+        })?,
+    };
+
+    let resolution = stdlib::resolve(requested)?;
+    if !resolution.missing.is_empty() {
+        let mut msg = format!(
+            "cannot resolve bare import(s): `{}`. They are not in the Standard Library \
+             (Tier 1). In Studio, the Resolver can download a dependency with your consent \
+             and store it inside the POID (Tier 2); with the CLI, vendor the files into the \
+             project and import them with relative paths. Nothing is fetched from the \
+             network without consent.",
+            resolution.missing.join("`, `")
+        );
+        for (name, reason) in &resolution.exclusions {
+            msg.push_str(&format!("\n  `{name}`: {reason}"));
+        }
+        return Err(err("unresolved-dependency", msg));
+    }
+
+    let mut aliases = Vec::new();
+    let mut bundled_deps: Vec<String> = Vec::new();
+    if !resolution.selected.is_empty() {
+        let lib_dir = stdlib::locate_dir()?;
+        for selection in &resolution.selected {
+            aliases.push((
+                selection.specifier.clone(),
+                stdlib::load_verified(&lib_dir, selection)?,
+            ));
+            if !bundled_deps.contains(&selection.record) {
+                bundled_deps.push(selection.record.clone());
+            }
+        }
+        bundled_deps.sort();
+    }
+
+    let esbuild = project::find_esbuild()?;
+    let bundled = project::bundle_staged(&staged, &entry, &aliases, &esbuild)?;
+
+    let html_source = shape
+        .html
+        .as_ref()
+        .and_then(|rel| rest.iter().find(|f| &f.rel == rel))
+        .and_then(|f| std::str::from_utf8(&f.content).ok().map(str::to_owned));
+    let mut parts = poid_convert::InlineParts {
+        js: Some(String::from_utf8_lossy(&bundled.js).into_owned()),
+        css: None,
+        title: title.to_owned(),
+    };
+    if let Some(css) = &bundled.css {
+        parts.css = Some(String::from_utf8_lossy(css).into_owned());
+    }
+    let index_html = poid_convert::inline_into_html(html_source.as_deref(), &parts);
+
+    // Sources, styles and the source HTML are consumed by the build; other
+    // files (icons, datasets the app opens at runtime, docs) pack as-is.
+    let consumed = |rel: &str| {
+        [".js", ".mjs", ".ts", ".tsx", ".jsx", ".css"]
+            .iter()
+            .any(|ext| rel.ends_with(ext))
+            || Some(rel) == shape.html.as_deref()
+    };
+    let mut app_files: Vec<ProjectFile> = rest.into_iter().filter(|f| !consumed(&f.rel)).collect();
+    app_files.push(ProjectFile {
+        rel: "index.html".to_owned(),
+        content: index_html.clone().into_bytes(),
+    });
+    app_files.sort_by(|a, b| a.rel.cmp(&b.rel));
+
+    Ok(BuiltApp {
+        app_files,
+        data_files,
+        bundled_deps,
+        esbuild_version: Some(esbuild.version),
+        index_html: Some(index_html),
+    })
+}
+
+/// The generated mount wrapper for a single-component AI artifact.
+fn artifact_entry(component_stem: &str) -> String {
+    format!(
+        "import App from \"./{component_stem}\";\nimport {{ createRoot }} from \"react-dom/client\";\nconst node = document.getElementById(\"root\") ?? (() => {{\n  const d = document.createElement(\"div\");\n  d.id = \"root\";\n  document.body.append(d);\n  return d;\n}})();\ncreateRoot(node).render(<App />);\n"
+    )
+}
 
 pub fn init(dir: &Path, template: Template, force: bool) -> Result<Report, CmdError> {
     if dir.exists() && std::fs::read_dir(dir)?.next().is_some() && !force {
@@ -84,37 +264,12 @@ pub fn pack(dir: &Path, output: Option<&Path>) -> Result<Report, CmdError> {
         ));
     }
 
-    // Bare imports cannot be resolved before the Standard Library (M06).
-    // Fail with the dependency's name — never fetch silently.
-    let bare = project::bare_imports(&files);
-    if !bare.is_empty() {
-        let list = bare.into_iter().collect::<Vec<_>>().join("`, `");
-        return Err(err(
-            "unresolved-dependency",
-            format!(
-                "cannot resolve bare import(s): `{list}`. The Standard Library is not \
-                 available yet (M06); vendor these dependencies and import them with \
-                 relative paths. Nothing is fetched from the network without consent."
-            ),
-        ));
-    }
-
-    let mut esbuild_version: Option<String> = None;
-    if project::needs_bundling(&files) {
-        let esbuild = project::find_esbuild()?;
-        let bundled = project::bundle(dir, &esbuild)?;
-        esbuild_version = Some(esbuild.version);
-        // Every JS/TS source is consumed by the bundle; other files pack as-is.
-        files.retain(|f| {
-            ![".js", ".mjs", ".ts", ".tsx", ".jsx"]
-                .iter()
-                .any(|ext| f.rel.ends_with(ext))
-        });
-        files.push(ProjectFile {
-            rel: "main.js".to_owned(),
-            content: bundled,
-        });
-    }
+    let title = manifest
+        .app
+        .as_ref()
+        .map(|a| a.name.clone())
+        .unwrap_or_else(|| "App".to_owned());
+    let built = build_app(std::mem::take(&mut files), &title)?;
 
     // Generated fields the author never writes by hand.
     if manifest.container_type != ContainerType::Data && manifest.instance.is_none() {
@@ -130,15 +285,29 @@ pub fn pack(dir: &Path, output: Option<&Path>) -> Result<Report, CmdError> {
             extra: ExtraFields::new(),
         });
         toolchain.builder = Some(format!("poid-cli@{}", env!("CARGO_PKG_VERSION")));
-        if let Some(v) = &esbuild_version {
+        if let Some(v) = &built.esbuild_version {
             toolchain.esbuild = Some(v.clone());
+        }
+        if !built.bundled_deps.is_empty() {
+            let mut deps = runtime.bundled_deps.take().unwrap_or_default();
+            for record in &built.bundled_deps {
+                if !deps.contains(record) {
+                    deps.push(record.clone());
+                }
+            }
+            deps.sort();
+            runtime.bundled_deps = Some(deps);
         }
     }
 
     let mut builder = PoidBuilder::new(manifest);
     let mut count = 0usize;
-    for f in files {
-        builder = builder.file(project::container_path(&f.rel), f.content)?;
+    for f in &built.app_files {
+        builder = builder.file(format!("app/{}", f.rel), f.content.clone())?;
+        count += 1;
+    }
+    for f in &built.data_files {
+        builder = builder.file(f.rel.clone(), f.content.clone())?;
         count += 1;
     }
     let bytes = poid_core::pack(builder)?;
@@ -174,9 +343,166 @@ pub fn pack(dir: &Path, output: Option<&Path>) -> Result<Report, CmdError> {
             "files": count,
             "bytes": bytes.len(),
             "integrity": { "app": digest_app, "deps": digest_deps },
-            "esbuild": esbuild_version,
+            "esbuild": built.esbuild_version,
         }),
     })
+}
+
+/// `poid convert <input>` — the Converter (M06 §5): a folder, a ZIP, a
+/// single HTML file or a single-file AI artifact becomes a `.poid`, with a
+/// generated manifest whose permissions are inferred from the built code —
+/// the most restrictive set that still works. Network is never inferred.
+pub fn convert(input: &Path, output: Option<&Path>) -> Result<Report, CmdError> {
+    let (files, raw_name) = load_convert_input(input)?;
+    if files.is_empty() {
+        return Err(err(
+            "project-empty",
+            format!("`{}` contains no convertible files", input.display()),
+        ));
+    }
+    let name = capitalize(&raw_name);
+    let built = build_app(files, &name)?;
+
+    if !built.app_files.iter().any(|f| f.rel == "index.html") {
+        return Err(err(
+            "convert-no-document",
+            "the input produced no HTML document to open — a POID needs an app/index.html",
+        ));
+    }
+
+    let inferred =
+        poid_convert::infer_permissions(&[built.index_html.as_deref().unwrap_or_default()]);
+    let plan = poid_convert::ConvertPlan {
+        app_id: format!("local.poid.{}", poid_convert::slug_of(&raw_name)),
+        name: name.clone(),
+        inferred,
+        bundled_deps: built.bundled_deps.clone(),
+        builder: format!("poid-cli@{}", env!("CARGO_PKG_VERSION")),
+        esbuild: built.esbuild_version.clone(),
+    };
+    let manifest = poid_convert::converted_manifest(&plan).map_err(PoidError::from)?;
+
+    let mut builder = PoidBuilder::new(manifest);
+    let mut count = 0usize;
+    for f in &built.app_files {
+        builder = builder.file(format!("app/{}", f.rel), f.content.clone())?;
+        count += 1;
+    }
+    for f in &built.data_files {
+        builder = builder.file(f.rel.clone(), f.content.clone())?;
+        count += 1;
+    }
+    let bytes = poid_core::pack(builder)?;
+
+    // Self-check, like pack: never write a file this CLI would not open.
+    let poid = poid_core::open(&bytes)?;
+    poid.verify()?;
+
+    let out_path = match output {
+        Some(p) => p.to_path_buf(),
+        None => PathBuf::from(format!("{}.poid", poid_convert::slug_of(&raw_name))),
+    };
+    atomic_write(&out_path, &bytes)?;
+
+    Ok(Report {
+        exit_failure: false,
+        human: format!(
+            "Converted `{}` -> {} ({count} files, {})",
+            input.display(),
+            out_path.display(),
+            human_size(bytes.len() as u64)
+        ),
+        json: json!({
+            "output": out_path.display().to_string(),
+            "files": count,
+            "bytes": bytes.len(),
+            "bundled_deps": built.bundled_deps,
+            "esbuild": built.esbuild_version,
+        }),
+    })
+}
+
+/// Loads the converter input: a directory, a `.zip`, or a single
+/// `.html`/`.jsx`/`.tsx` file. Returns the file set and a display name.
+fn load_convert_input(input: &Path) -> Result<(Vec<ProjectFile>, String), CmdError> {
+    let stem = input
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "app".to_owned());
+
+    if input.is_dir() {
+        return Ok((project::collect_files(input)?, stem));
+    }
+    let ext = input
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "zip" => {
+            let file = std::fs::File::open(input)?;
+            let mut archive = zip::ZipArchive::new(file)
+                .map_err(|e| err("convert-bad-zip", format!("cannot read the ZIP: {e}")))?;
+            let mut files = Vec::new();
+            for i in 0..archive.len() {
+                let mut entry = archive
+                    .by_index(i)
+                    .map_err(|e| err("convert-bad-zip", format!("cannot read the ZIP: {e}")))?;
+                if entry.is_dir() {
+                    continue;
+                }
+                let Some(path) = entry.enclosed_name() else {
+                    return Err(err(
+                        "convert-bad-zip",
+                        "the ZIP contains a path that escapes its root",
+                    ));
+                };
+                let rel = path
+                    .components()
+                    .map(|c| c.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                let mut content = Vec::new();
+                std::io::Read::read_to_end(&mut entry, &mut content)?;
+                files.push(ProjectFile { rel, content });
+            }
+            // A ZIP of a folder usually roots everything under one directory.
+            strip_common_root(&mut files);
+            files.sort_by(|a, b| a.rel.cmp(&b.rel));
+            Ok((files, stem))
+        }
+        "html" | "htm" | "jsx" | "tsx" => Ok((
+            vec![ProjectFile {
+                rel: input
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "index.html".to_owned()),
+                content: std::fs::read(input)?,
+            }],
+            stem,
+        )),
+        _ => Err(err(
+            "convert-unsupported-input",
+            format!(
+                "`{}` is not something the converter understands — give it a folder, a .zip, \
+                 a .html document or a single .jsx/.tsx artifact",
+                input.display()
+            ),
+        )),
+    }
+}
+
+/// Strips the single shared top-level directory a zipped folder produces.
+fn strip_common_root(files: &mut [ProjectFile]) {
+    let Some(first) = files.first() else { return };
+    let Some(root) = first.rel.split('/').next().map(str::to_owned) else {
+        return;
+    };
+    let prefix = format!("{root}/");
+    if files.len() > 1 && files.iter().all(|f| f.rel.starts_with(&prefix)) {
+        for f in files {
+            f.rel = f.rel[prefix.len()..].to_owned();
+        }
+    }
 }
 
 pub fn validate(file: &Path) -> Result<Report, CmdError> {

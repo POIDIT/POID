@@ -1,0 +1,18 @@
+[package]
+name = "poid-convert"
+description = "Converter logic: input classification, build planning, permission inference and manifest generation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+poid-core = { path = "../poid-core", default-features = false }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+
+[dev-dependencies]
+serde_json = "1.0.150"

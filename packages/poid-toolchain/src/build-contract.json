@@ -1,0 +1,34 @@
+{
+  "$comment": "The build contract (ARCHITECTURE 5.1). One esbuild version, one option set, consumed by BOTH build paths: esbuild-wasm in the app (@poid/toolchain) and the native sidecar in the CLI (crates/poid-cli includes this file at compile time). Same version + same options = byte-identical output; CI proves it. Bump the version everywhere at once or nowhere.",
+  "esbuild": "0.25.12",
+  "format": "esm",
+  "platform": "browser",
+  "target": "es2022",
+  "charset": "utf8",
+  "legalComments": "none",
+  "jsx": "automatic",
+  "minify": true,
+  "entryName": "main",
+  "define": {
+    "process.env.NODE_ENV": "\"production\""
+  },
+  "loader": {
+    ".png": "dataurl",
+    ".jpg": "dataurl",
+    ".jpeg": "dataurl",
+    ".gif": "dataurl",
+    ".webp": "dataurl",
+    ".avif": "dataurl",
+    ".svg": "dataurl",
+    ".ico": "dataurl",
+    ".woff": "dataurl",
+    ".woff2": "dataurl",
+    ".ttf": "dataurl",
+    ".otf": "dataurl",
+    ".mp3": "dataurl",
+    ".wav": "dataurl",
+    ".txt": "text",
+    ".csv": "text",
+    ".md": "text"
+  }
+}

@@ -8,6 +8,7 @@
 mod commands;
 mod output;
 mod project;
+mod stdlib;
 mod templates;
 
 use std::path::PathBuf;
@@ -46,6 +47,14 @@ enum Command {
         /// Project directory (must contain poid.json).
         dir: PathBuf,
         /// Output file. Defaults to `<dir-name>.poid`.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Convert a folder, ZIP, HTML file or AI artifact into a .poid.
+    Convert {
+        /// Input: a project folder, a .zip, a .html document or a .jsx/.tsx artifact.
+        input: PathBuf,
+        /// Output file. Defaults to <name>.poid.
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
@@ -165,6 +174,7 @@ fn run(cli: &Cli) -> Result<Report, CmdError> {
             force,
         } => commands::init(dir, *template, *force),
         Command::Pack { dir, output } => commands::pack(dir, output.as_deref()),
+        Command::Convert { input, output } => commands::convert(input, output.as_deref()),
         Command::Validate { file } => commands::validate(file),
         Command::Inspect { file } => commands::inspect(file),
         Command::Extract {

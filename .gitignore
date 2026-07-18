@@ -23,3 +23,9 @@ Thumbs.db
 packages/poid-web/src/wasm/
 packages/poid-web/site/
 tools/wasm-bindgen-driver/target/
+
+# Standard Library build artifacts (rebuilt deterministically; checksums committed)
+packages/poid-stdlib/lib/
+packages/poid-stdlib/.cache/
+engines/.cache/
+packages/poid-host/e2e/fixtures/python-chart/deps/
