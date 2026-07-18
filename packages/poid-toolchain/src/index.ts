@@ -1,6 +1,23 @@
 /**
- * @poid/toolchain — In-app build pipeline: esbuild-wasm, the Standard Library and the dependency Resolver. No Node.js anywhere in the product.
+ * `@poid/toolchain` — the in-app build pipeline: the pinned build contract,
+ * the esbuild engine over in-memory files, the Standard Library and the
+ * dependency Resolver. No Node.js anywhere in the product.
  */
 
-/** Workspace package identifier. */
-export const PACKAGE_NAME = "@poid/toolchain";
+export {
+  type BuildContract,
+  CONTRACT,
+  contractBuildOptions,
+  contractCliFlags,
+  type LoaderMap,
+  PINNED_ESBUILD,
+} from "./contract.js";
+export {
+  BundleError,
+  type BundleInput,
+  type BundleOutput,
+  bundle,
+  bundleText,
+  EngineVersionError,
+  type EsbuildApi,
+} from "./engine.js";

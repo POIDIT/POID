@@ -140,6 +140,68 @@ fn import_specifiers(text: &str) -> Vec<String> {
     specs
 }
 
+/// The build contract shared with `@poid/toolchain` (ARCHITECTURE §5.1):
+/// one pinned esbuild version, one option set, byte-identical output across
+/// the CLI sidecar and the in-app esbuild-wasm engine.
+const BUILD_CONTRACT: &str =
+    include_str!("../../../packages/poid-toolchain/src/build-contract.json");
+
+/// The typed slice of the contract the CLI consumes.
+#[derive(serde::Deserialize)]
+pub struct BuildContract {
+    /// Exact esbuild version the sidecar must report.
+    pub esbuild: String,
+    format: String,
+    platform: String,
+    target: String,
+    charset: String,
+    #[serde(rename = "legalComments")]
+    legal_comments: String,
+    jsx: String,
+    minify: bool,
+    #[serde(rename = "entryName")]
+    entry_name: String,
+    define: std::collections::BTreeMap<String, String>,
+    loader: std::collections::BTreeMap<String, String>,
+}
+
+/// Parses the embedded contract. Infallible in practice — the file is
+/// compiled in — but surfaced as an error rather than a panic.
+pub fn build_contract() -> Result<BuildContract, CmdError> {
+    serde_json::from_str(BUILD_CONTRACT).map_err(|e| {
+        err(
+            "internal",
+            format!("embedded build contract is invalid: {e}"),
+        )
+    })
+}
+
+/// The contract as sidecar flags, in the same order `@poid/toolchain`
+/// generates them (both sides sort `define`/`loader` keys). A unit test on
+/// each side pins the exact sequence so they cannot drift silently.
+pub fn contract_flags(contract: &BuildContract) -> Vec<String> {
+    let mut flags = vec![
+        "--bundle".to_owned(),
+        format!("--format={}", contract.format),
+        format!("--platform={}", contract.platform),
+        format!("--target={}", contract.target),
+        format!("--charset={}", contract.charset),
+        format!("--legal-comments={}", contract.legal_comments),
+        format!("--jsx={}", contract.jsx),
+    ];
+    if contract.minify {
+        flags.push("--minify".to_owned());
+    }
+    flags.push(format!("--entry-names={}", contract.entry_name));
+    for (key, value) in &contract.define {
+        flags.push(format!("--define:{key}={value}"));
+    }
+    for (ext, loader) in &contract.loader {
+        flags.push(format!("--loader:{ext}={loader}"));
+    }
+    flags
+}
+
 /// A discovered esbuild sidecar.
 pub struct Esbuild {
     /// Path to the executable.
@@ -192,36 +254,72 @@ pub fn find_esbuild() -> Result<Esbuild, CmdError> {
             "esbuild --version produced no output",
         ));
     }
+    let pinned = build_contract()?.esbuild;
+    if version != pinned {
+        return Err(err(
+            "esbuild-version-mismatch",
+            format!(
+                "the esbuild sidecar reports {version}, but the build contract pins {pinned}. \
+                 Builds must be reproducible, so the versions have to match exactly — install \
+                 esbuild {pinned} and point POID_ESBUILD at it."
+            ),
+        ));
+    }
     Ok(Esbuild {
         exe: candidate,
         version,
     })
 }
 
-/// Bundles the project entry with esbuild into a single ESM file.
+/// The output of one contract build: bundled ESM plus CSS when any
+/// stylesheet was imported.
+pub struct Bundled {
+    /// Minified ESM (`main.js`).
+    pub js: Vec<u8>,
+    /// Minified CSS (`main.css`), when present.
+    pub css: Option<Vec<u8>>,
+}
+
+/// Entry candidates, most specific first. `src/` variants cover the layout
+/// AI tools and Vite templates emit; root variants cover flat projects.
+pub const ENTRY_CANDIDATES: [&str; 8] = [
+    "src/main.tsx",
+    "src/main.ts",
+    "src/main.jsx",
+    "src/main.js",
+    "main.tsx",
+    "main.ts",
+    "main.jsx",
+    "main.js",
+];
+
+/// Bundles the project entry with the sidecar under the build contract.
 ///
-/// Returns the bundled `main.js` content. All `.ts`/`.tsx`/`.jsx`/`.js`
-/// sources are consumed by the bundle; other files pack as-is.
-pub fn bundle(dir: &Path, esbuild: &Esbuild) -> Result<Vec<u8>, CmdError> {
-    let entry = ["main.ts", "main.tsx", "main.jsx", "main.js"]
+/// The entry is passed **relative to the project directory** and the sidecar
+/// runs with the project as its working directory: output must not depend on
+/// where the project happens to live on disk (reproducibility), and CSS
+/// module class names are derived from relative paths — the in-app engine
+/// sees the same ones.
+pub fn bundle(dir: &Path, esbuild: &Esbuild) -> Result<Bundled, CmdError> {
+    let entry = ENTRY_CANDIDATES
         .iter()
-        .map(|name| dir.join(name))
-        .find(|p| p.is_file())
+        .find(|name| dir.join(name).is_file())
         .ok_or_else(|| {
             err(
                 "bundle-entry-missing",
-                "bundling requires an entry file named main.ts, main.tsx, main.jsx or main.js \
-                 at the project root",
+                format!(
+                    "bundling requires an entry file; looked for {}",
+                    ENTRY_CANDIDATES.join(", ")
+                ),
             )
         })?;
+    let contract = build_contract()?;
     let tmp = tempfile::tempdir()?;
-    let outfile = tmp.path().join("main.js");
     let output = Command::new(&esbuild.exe)
-        .arg(&entry)
-        .arg("--bundle")
-        .arg("--format=esm")
-        .arg("--platform=browser")
-        .arg(format!("--outfile={}", outfile.display()))
+        .current_dir(dir)
+        .arg(entry)
+        .args(contract_flags(&contract))
+        .arg(format!("--outdir={}", tmp.path().display()))
         .output()
         .map_err(|e| err("build-failed", format!("cannot run esbuild: {e}")))?;
     if !output.status.success() {
@@ -233,12 +331,63 @@ pub fn bundle(dir: &Path, esbuild: &Esbuild) -> Result<Vec<u8>, CmdError> {
             ),
         ));
     }
-    Ok(std::fs::read(&outfile)?)
+    let js = std::fs::read(tmp.path().join(format!("{}.js", contract.entry_name)))?;
+    let css_path = tmp.path().join(format!("{}.css", contract.entry_name));
+    let css = if css_path.is_file() {
+        Some(std::fs::read(&css_path)?)
+    } else {
+        None
+    };
+    Ok(Bundled { js, css })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Mirrors `contractCliFlags` in `@poid/toolchain` — the exact same
+    /// literal list is pinned in `src/parity.test.ts` there. If the contract
+    /// changes, both tests must be updated together; that is the tripwire.
+    #[test]
+    fn contract_flags_match_the_toolchain_side() {
+        let Ok(contract) = build_contract() else {
+            panic!("embedded contract must parse");
+        };
+        assert_eq!(contract.esbuild, "0.25.12");
+        let flags = contract_flags(&contract);
+        assert_eq!(
+            flags,
+            [
+                "--bundle",
+                "--format=esm",
+                "--platform=browser",
+                "--target=es2022",
+                "--charset=utf8",
+                "--legal-comments=none",
+                "--jsx=automatic",
+                "--minify",
+                "--entry-names=main",
+                "--define:process.env.NODE_ENV=\"production\"",
+                "--loader:.avif=dataurl",
+                "--loader:.csv=text",
+                "--loader:.gif=dataurl",
+                "--loader:.ico=dataurl",
+                "--loader:.jpeg=dataurl",
+                "--loader:.jpg=dataurl",
+                "--loader:.md=text",
+                "--loader:.mp3=dataurl",
+                "--loader:.otf=dataurl",
+                "--loader:.png=dataurl",
+                "--loader:.svg=dataurl",
+                "--loader:.ttf=dataurl",
+                "--loader:.txt=text",
+                "--loader:.wav=dataurl",
+                "--loader:.webp=dataurl",
+                "--loader:.woff=dataurl",
+                "--loader:.woff2=dataurl",
+            ]
+        );
+    }
 
     fn src(rel: &str, content: &str) -> ProjectFile {
         ProjectFile {

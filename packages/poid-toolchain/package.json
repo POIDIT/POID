@@ -13,7 +13,12 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "esbuild-wasm": "0.25.12"
+  },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "0.25.12",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

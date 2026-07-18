@@ -112,8 +112,14 @@ pub fn pack(dir: &Path, output: Option<&Path>) -> Result<Report, CmdError> {
         });
         files.push(ProjectFile {
             rel: "main.js".to_owned(),
-            content: bundled,
+            content: bundled.js,
         });
+        if let Some(css) = bundled.css {
+            files.push(ProjectFile {
+                rel: "main.css".to_owned(),
+                content: css,
+            });
+        }
     }
 
     // Generated fields the author never writes by hand.
