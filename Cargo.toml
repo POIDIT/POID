@@ -5,6 +5,7 @@ members = [
     "crates/poid-vault",
     "crates/poid-broker",
     "crates/poid-cli",
+    "crates/poid-convert",
     "crates/poid-fixtures",
     "crates/poid-wasm",
 ]

@@ -276,13 +276,13 @@ fn stable_error_codes_in_json() {
 }
 
 #[test]
-fn bare_imports_fail_with_the_dependency_named() {
+fn bare_imports_outside_the_stdlib_fail_with_the_dependency_named() {
     let tmp = tempfile::tempdir().unwrap();
     let demo = tmp.path().join("demo");
     poid().arg("init").arg(&demo).assert().success();
     std::fs::write(
         demo.join("main.js"),
-        "import react from \"react\";\nconsole.log(react);\n",
+        "import tone from \"tone\";\nconsole.log(tone);\n",
     )
     .unwrap();
 
@@ -291,7 +291,63 @@ fn bare_imports_fail_with_the_dependency_named() {
     let assert = cmd.assert().failure();
     let v = json_stdout(assert);
     assert_eq!(v["error"]["code"], "unresolved-dependency");
-    assert!(v["error"]["message"].as_str().unwrap().contains("react"));
+    let message = v["error"]["message"].as_str().unwrap();
+    assert!(message.contains("tone"));
+    assert!(message.contains("Resolver"), "points at Tier 2");
+}
+
+#[test]
+fn stdlib_imports_resolve_and_inline_offline() {
+    let Some(esbuild) = find_local_esbuild() else {
+        eprintln!("skipped: no local esbuild binary found (install JS deps with pnpm to enable)");
+        return;
+    };
+    let stdlib = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/poid-stdlib/lib");
+    if !stdlib.join("react.js").is_file() {
+        eprintln!("skipped: Standard Library not built (pnpm --filter @poid/stdlib build:lib)");
+        return;
+    }
+
+    let tmp = tempfile::tempdir().unwrap();
+    let demo = tmp.path().join("demo");
+    let out = tmp.path().join("demo.poid");
+    poid().arg("init").arg(&demo).assert().success();
+    std::fs::remove_file(demo.join("main.js")).unwrap();
+    std::fs::remove_file(demo.join("counter.js")).unwrap();
+    std::fs::write(
+        demo.join("main.jsx"),
+        "import { useState } from \"react\";\nimport { createRoot } from \"react-dom/client\";\nfunction C() { const [n] = useState(1); return <b>{n}</b>; }\ncreateRoot(document.body).render(<C />);\n",
+    )
+    .unwrap();
+
+    poid()
+        .env("POID_ESBUILD", &esbuild)
+        .env("POID_STDLIB", &stdlib)
+        .arg("pack")
+        .arg(&demo)
+        .arg("-o")
+        .arg(&out)
+        .assert()
+        .success();
+    poid().arg("validate").arg(&out).assert().success();
+
+    let v = json_stdout(
+        poid()
+            .args(["--json", "inspect"])
+            .arg(&out)
+            .assert()
+            .success(),
+    );
+    let deps: Vec<&str> = v["manifest"]["runtime"]["bundled_deps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d.as_str().unwrap())
+        .collect();
+    assert!(
+        deps.iter().any(|d| d.starts_with("react@")),
+        "stdlib selections recorded in bundled_deps, got {deps:?}"
+    );
 }
 
 #[test]
@@ -357,7 +413,14 @@ fn typescript_bundles_when_esbuild_is_available() {
         .iter()
         .map(|f| f["path"].as_str().unwrap())
         .collect();
-    assert!(paths.contains(&"app/main.js"), "bundle output present");
+    assert!(
+        paths.contains(&"app/index.html"),
+        "the bundle is inlined into the document (M06), got {paths:?}"
+    );
+    assert!(
+        !paths.contains(&"app/main.js"),
+        "no separate bundle file — readers execute inline output until #5"
+    );
     assert!(
         !paths.iter().any(|p| p.ends_with(".ts")),
         "sources consumed"

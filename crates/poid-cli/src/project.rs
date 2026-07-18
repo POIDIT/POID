@@ -12,6 +12,7 @@ const SKIP_DIRS: [&str; 3] = ["node_modules", "target", "dist"];
 
 /// A project file: path relative to the project root (forward slashes) plus
 /// its content.
+#[derive(Clone)]
 pub struct ProjectFile {
     /// Relative path, `/`-separated.
     pub rel: String,
@@ -64,28 +65,11 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<ProjectFile>) -> Result<(), CmdEr
     Ok(())
 }
 
-/// Maps a project-relative path to its container path: `data/` travels as-is
-/// (embedded state, SPEC §6), everything else lives under `app/`.
-pub fn container_path(rel: &str) -> String {
-    if rel == "data" || rel.starts_with("data/") {
-        rel.to_owned()
-    } else {
-        format!("app/{rel}")
-    }
-}
-
-/// True when the extension marks a source file that requires bundling.
-pub fn needs_bundling(files: &[ProjectFile]) -> bool {
-    files
-        .iter()
-        .any(|f| f.rel.ends_with(".ts") || f.rel.ends_with(".tsx") || f.rel.ends_with(".jsx"))
-}
-
 /// Scans JS/TS sources for bare imports (`import x from "react"`).
 ///
-/// A heuristic line scan, not a parser — full resolution against the
-/// Standard Library arrives in M06. Relative (`./`, `../`), absolute and
-/// URL specifiers are fine; bare specifiers cannot be resolved yet.
+/// A heuristic line scan, not a parser. Relative (`./`, `../`), absolute
+/// and URL specifiers are fine; bare specifiers resolve through the
+/// Standard Library (Tier 1) or fail with a clear error.
 pub fn bare_imports(files: &[ProjectFile]) -> BTreeSet<String> {
     let mut found = BTreeSet::new();
     for file in files {
@@ -280,46 +264,40 @@ pub struct Bundled {
     pub css: Option<Vec<u8>>,
 }
 
-/// Entry candidates, most specific first. `src/` variants cover the layout
-/// AI tools and Vite templates emit; root variants cover flat projects.
-pub const ENTRY_CANDIDATES: [&str; 8] = [
-    "src/main.tsx",
-    "src/main.ts",
-    "src/main.jsx",
-    "src/main.js",
-    "main.tsx",
-    "main.ts",
-    "main.jsx",
-    "main.js",
-];
-
-/// Bundles the project entry with the sidecar under the build contract.
+/// Bundles `entry` from an in-memory file set with the sidecar under the
+/// build contract.
 ///
-/// The entry is passed **relative to the project directory** and the sidecar
-/// runs with the project as its working directory: output must not depend on
-/// where the project happens to live on disk (reproducibility), and CSS
-/// module class names are derived from relative paths — the in-app engine
-/// sees the same ones.
-pub fn bundle(dir: &Path, esbuild: &Esbuild) -> Result<Bundled, CmdError> {
-    let entry = ENTRY_CANDIDATES
-        .iter()
-        .find(|name| dir.join(name).is_file())
-        .ok_or_else(|| {
-            err(
-                "bundle-entry-missing",
-                format!(
-                    "bundling requires an entry file; looked for {}",
-                    ENTRY_CANDIDATES.join(", ")
-                ),
-            )
-        })?;
+/// The files are **staged into a temporary directory** and the sidecar runs
+/// with that directory as its working directory: output never depends on
+/// where the project lives on disk (reproducibility — CSS module class
+/// names derive from relative paths, and the in-app engine sees the same
+/// ones). `aliases` map bare specifiers to files outside the stage (the
+/// verified Standard Library bundles).
+pub fn bundle_staged(
+    files: &[ProjectFile],
+    entry: &str,
+    aliases: &[(String, PathBuf)],
+    esbuild: &Esbuild,
+) -> Result<Bundled, CmdError> {
     let contract = build_contract()?;
-    let tmp = tempfile::tempdir()?;
-    let output = Command::new(&esbuild.exe)
-        .current_dir(dir)
+    let stage = tempfile::tempdir()?;
+    for file in files {
+        let path = stage.path().join(&file.rel);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, &file.content)?;
+    }
+    let out = tempfile::tempdir()?;
+    let mut cmd = Command::new(&esbuild.exe);
+    cmd.current_dir(stage.path())
         .arg(entry)
-        .args(contract_flags(&contract))
-        .arg(format!("--outdir={}", tmp.path().display()))
+        .args(contract_flags(&contract));
+    for (specifier, path) in aliases {
+        cmd.arg(format!("--alias:{specifier}={}", path.display()));
+    }
+    let output = cmd
+        .arg(format!("--outdir={}", out.path().display()))
         .output()
         .map_err(|e| err("build-failed", format!("cannot run esbuild: {e}")))?;
     if !output.status.success() {
@@ -331,8 +309,8 @@ pub fn bundle(dir: &Path, esbuild: &Esbuild) -> Result<Bundled, CmdError> {
             ),
         ));
     }
-    let js = std::fs::read(tmp.path().join(format!("{}.js", contract.entry_name)))?;
-    let css_path = tmp.path().join(format!("{}.css", contract.entry_name));
+    let js = std::fs::read(out.path().join(format!("{}.js", contract.entry_name)))?;
+    let css_path = out.path().join(format!("{}.css", contract.entry_name));
     let css = if css_path.is_file() {
         Some(std::fs::read(&css_path)?)
     } else {
@@ -417,19 +395,5 @@ import url from "https://example.com/mod.js";
     fn non_source_files_are_not_scanned() {
         let files = [src("notes.md", r#"import fake from "react""#)];
         assert!(bare_imports(&files).is_empty());
-    }
-
-    #[test]
-    fn bundling_detection() {
-        assert!(needs_bundling(&[src("main.ts", "")]));
-        assert!(needs_bundling(&[src("ui.tsx", "")]));
-        assert!(!needs_bundling(&[src("main.js", ""), src("style.css", "")]));
-    }
-
-    #[test]
-    fn container_path_mapping() {
-        assert_eq!(container_path("index.html"), "app/index.html");
-        assert_eq!(container_path("assets/icon.svg"), "app/assets/icon.svg");
-        assert_eq!(container_path("data/store.json"), "data/store.json");
     }
 }

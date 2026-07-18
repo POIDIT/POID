@@ -589,11 +589,23 @@ dependencies = [
  "clap",
  "ed25519-dalek",
  "getrandom 0.3.4",
+ "poid-convert",
  "poid-core",
  "predicates",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
+ "zip",
+]
+
+[[package]]
+name = "poid-convert"
+version = "0.0.1"
+dependencies = [
+ "poid-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
