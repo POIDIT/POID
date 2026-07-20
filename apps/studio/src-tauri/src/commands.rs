@@ -10,15 +10,85 @@
 //! instance through the **calling window's label**. There is deliberately no
 //! parameter that names an instance, a path, or another window.
 
+use std::collections::HashMap;
 use std::path::Path;
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use uuid::Uuid;
 
+use crate::asset_registry::{Asset, SessionAssets};
 use crate::document::{self, DocumentDto};
 use crate::state::Documents;
 use crate::vault_state::VaultState;
 use crate::windows;
+
+/// One asset the reader hands the synthetic origin (SPEC §5.2.1).
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetDto {
+    /// Container path, e.g. `app/main.js` (empty = the entry, at the root).
+    pub path: String,
+    /// MIME type.
+    pub content_type: String,
+    /// Bytes, base64.
+    pub data_b64: String,
+}
+
+/// The synthetic origin's base URL and its CSP source (SPEC §5.2.1). The
+/// custom `poid` scheme is served at `poid://localhost` everywhere except
+/// Windows/WebView2, which maps custom schemes to `http://<scheme>.localhost`.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyntheticOriginInfo {
+    /// URL prefix; the reader appends `<session>/<entry>`.
+    pub base: String,
+    /// CSP `script-src`/`style-src` source for this origin.
+    pub csp_source: String,
+}
+
+/// Reports the synthetic origin's URL base + CSP source to the reader.
+#[tauri::command]
+pub fn synthetic_origin() -> SyntheticOriginInfo {
+    let origin = if cfg!(windows) {
+        "http://poid.localhost"
+    } else {
+        "poid://localhost"
+    };
+    SyntheticOriginInfo {
+        base: origin.to_owned(),
+        csp_source: origin.to_owned(),
+    }
+}
+
+/// Registers a Reader session's served assets for the `poid://` origin.
+#[tauri::command]
+pub fn register_session_assets(
+    assets_state: State<'_, SessionAssets>,
+    session: String,
+    assets: Vec<AssetDto>,
+) -> Result<(), String> {
+    let mut map = HashMap::with_capacity(assets.len());
+    for a in assets {
+        let bytes = BASE64.decode(&a.data_b64).map_err(|e| e.to_string())?;
+        map.insert(
+            a.path,
+            Asset {
+                content_type: a.content_type,
+                bytes,
+            },
+        );
+    }
+    assets_state.set(session, map);
+    Ok(())
+}
+
+/// Releases a Reader session's served assets (reader teardown).
+#[tauri::command]
+pub fn revoke_session_assets(assets_state: State<'_, SessionAssets>, session: String) {
+    assets_state.remove(&session);
+}
 
 /// Returns the document this Reader window was opened for.
 #[tauri::command]

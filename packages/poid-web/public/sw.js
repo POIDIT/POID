@@ -38,6 +38,11 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// The synthetic origin (SPEC §5.2.1) is NOT served here: a service worker does
+// not control sandboxed (opaque-origin) clients, so it cannot serve the
+// application iframe. The Web Reader mints per-subresource `blob:` URLs
+// instead (see `web-origin.ts`). This worker's job stays offline caching.
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET" || !request.url.startsWith(self.location.origin)) return;

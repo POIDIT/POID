@@ -86,6 +86,28 @@ export class ContainerServer {
   }
 
   /**
+   * Every asset the synthetic origin serves: the injected entry HTML plus each
+   * container file at its own path. This is what a reader hands to its origin
+   * mechanism (the desktop `poid://` protocol, the web service worker) so a
+   * relative `<script src="app/main.js">` resolves to real bytes. The map is
+   * the single source of truth — both readers serve exactly this.
+   */
+  assets(): Map<string, ServedResponse> {
+    const out = new Map<string, ServedResponse>();
+    out.set(this.entry, {
+      status: 200,
+      contentType: HTML_MIME,
+      body: this.entryHtml,
+    });
+    for (const [path, body] of this.files) {
+      const key = normalize(path);
+      if (key === this.entry) continue;
+      out.set(key, { status: 200, contentType: mimeFor(key), body });
+    }
+    return out;
+  }
+
+  /**
    * Resolves a request path within the container. Returns 404 for anything not
    * present; the synthetic origin never exposes the vault, the raw container,
    * or the host — only these bytes.
@@ -137,6 +159,9 @@ export function injectRuntime(
     const insertAt = html.indexOf(">", headIdx) + 1;
     return `${html.slice(0, insertAt)}\n${injected}${html.slice(insertAt)}`;
   }
-  // No <head>: prepend a minimal one.
-  return `<!doctype html><head>\n${injected}</head>${html}`;
+  // No <head>: prepend a minimal one, moving any leading doctype ahead of it
+  // so the document has exactly one, at the top.
+  const doctype = html.match(/^\s*<!doctype[^>]*>/i);
+  const rest = doctype ? html.slice(doctype[0].length) : html;
+  return `${doctype ? doctype[0] : "<!doctype html>"}<head>\n${injected}</head>${rest}`;
 }
