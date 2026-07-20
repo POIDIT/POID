@@ -108,6 +108,21 @@ test.describe("valid fixtures", () => {
     await expect(page.locator("#reader-host iframe")).toHaveAttribute("sandbox", "allow-scripts");
   });
 
+  test("a multi-file app's external bundle executes (SPEC §5.2.1)", async ({ page }) => {
+    await openFixture(page, join(conformance, "valid", "react-app.poid"));
+    await page.locator(".poid-consent__run").click();
+    await expect(page.locator(".poid-chrome__title")).toHaveText("React App");
+
+    // `react-app` loads its bundle with `<script type="module" src="main.js">`.
+    // It only runs if the subresource is served from the synthetic origin —
+    // here, a blob: URL the reader rewrote the reference to.
+    const frame = page.frameLocator("#reader-host iframe");
+    await expect(frame.locator("#root")).toHaveText("hello from a bundle");
+
+    // Still sandbox-opaque (never regress).
+    await expect(page.locator("#reader-host iframe")).toHaveAttribute("sandbox", "allow-scripts");
+  });
+
   test("Cancel never executes the application", async ({ page }) => {
     await openFixture(page, join(conformance, "valid", "minimal-html.poid"));
     await page.locator(".poid-consent__cancel").click();

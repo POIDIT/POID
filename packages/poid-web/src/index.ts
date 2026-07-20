@@ -37,3 +37,4 @@ export {
   type PoidWasm,
   type WebPoidHandle,
 } from "./wasm-api.js";
+export { BlobRewriteOrigin } from "./web-origin.js";

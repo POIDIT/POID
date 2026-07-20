@@ -22,6 +22,7 @@ import {
 } from "@poid/host";
 import { VaultWasmEngine } from "./vault-engine.js";
 import { isContainerError, loadPoidWasm, type WebPoidHandle } from "./wasm-api.js";
+import { BlobRewriteOrigin } from "./web-origin.js";
 
 /** The container was rejected by the validation core. */
 export interface RejectedOutcome {
@@ -169,6 +170,11 @@ export async function runContainer(
     db = idb;
   }
 
+  // Serve the app + subresources as blob URLs (SPEC §5.2.1) so a multi-file
+  // app's `<script src>` runs — works offline and from file://, unlike a
+  // service worker (which cannot control the sandboxed opaque-origin iframe).
+  const origin = new BlobRewriteOrigin();
+
   const handle = await mountReader({
     container,
     files,
@@ -183,6 +189,7 @@ export async function runContainer(
     sdkSource,
     engine: db,
     quotaBytes: facts.quotaMb === null ? undefined : facts.quotaMb * 1024 * 1024,
+    origin,
   });
 
   const ran = handle.chrome !== undefined;

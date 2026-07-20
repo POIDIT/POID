@@ -271,10 +271,19 @@ A reader **MUST** serve the application and every relative subresource
 
 Two conformant realisations of this origin are used in this repository:
 
-| Reader | Mechanism | Origin |
+| Reader | Mechanism | Subresources resolve as |
 |---|---|---|
-| Desktop (Tauri) | a custom URI-scheme protocol handler | `poid://<session>/…` |
-| Web | a service worker serving a per-session scope | a reader-controlled path/origin |
+| Desktop (Tauri) | a custom URI-scheme protocol handler | `poid://<session>/app/…` |
+| Web | per-subresource `blob:` URLs, with the entry's relative references rewritten | `blob:…` |
+
+> **Why not a service worker on the web?** A service worker does not control
+> sandboxed, opaque-origin clients — which the application iframe must be. So
+> the web reader mints a `blob:` URL per subresource and rewrites the entry's
+> `src`/`href` references to them. This preserves the opaque origin, works
+> offline and from `file://`, and adds only `blob:` to `script-src`/`style-src`
+> (container-minted URLs, never network). It resolves references in HTML
+> attributes; the desktop `poid://` origin additionally covers any tree shape.
+> Every POID is bundled at authoring time, so both readers run the same output.
 
 > **Amendment note (M09):** through M08 this clause read *"serve container
 > contents from an **opaque** origin."* An opaque origin has no name a CSP
