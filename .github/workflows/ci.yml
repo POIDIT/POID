@@ -109,6 +109,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build workspace packages (the studio bundles import them)
         run: pnpm -r build
+      - name: Build the window bundles (generate_context! embeds frontendDist at compile time)
+        run: pnpm --filter @poid/studio build:ui
       - name: Studio crate tests (cli routing, document loading, window state)
         run: cargo test --manifest-path apps/studio/src-tauri/Cargo.toml
       - name: Studio crate clippy

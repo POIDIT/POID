@@ -4,8 +4,8 @@
  * first-open experience of an embedded-storage POID is identical everywhere.
  */
 
-import type { IndexedDbEngine } from "./idb-engine.js";
 import type { Scope } from "./engine.js";
+import type { IndexedDbEngine } from "./idb-engine.js";
 
 /**
  * Seeds the engine from embedded `data/store.json` bytes, if they parse to
