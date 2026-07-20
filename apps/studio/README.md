@@ -57,14 +57,22 @@ chrome unresponsive and Stop always works).
 
 ## Security notes specific to the desktop shell
 
-- **Host pages ship no CSP** (`app.security.csp: null`), mirroring the Web
-  Reader. This is deliberate: the application iframe is a `blob:` document,
-  and blob documents **inherit the creator's CSP** — any host `script-src`
-  would also govern (and break) the sandbox's injected runtime. The
-  sandbox's own protection is unaffected: its document carries its own CSP
-  (`connect-src 'none'`, …) and the iframe runs `sandbox="allow-scripts"`
-  without `allow-same-origin`. A strict host CSP becomes possible again once
-  applications are served from a real synthetic origin (issue #5).
+- **The application is served from the `poid://` synthetic origin** (SPEC
+  §5.2.1, M09): a Tauri async URI-scheme handler serves each session's app +
+  subresources (`http://poid.localhost` on WebView2), registered over IPC
+  from `ContainerServer.assets()`. This is what makes a multi-file app's
+  external `<script src="main.js">` execute. The iframe stays opaque-origin
+  (`sandbox="allow-scripts"`, no `allow-same-origin`); `poid://` only widens
+  `script-src` to container content, and subresource responses carry
+  `Access-Control-Allow-Origin: *` because a module fetch from the opaque
+  origin is cross-origin.
+- **The host UI has a strict CSP again** (`app.security.csp`). Through M08 it
+  was `null`, because the app iframe was a `blob:` document and blob documents
+  **inherit the creator's CSP** — any host `script-src` would have broken the
+  sandbox's injected runtime. Now the app is a `poid://` document with its own
+  response and its own CSP, so it no longer inherits the host's; the host
+  windows (the hub and the Reader chrome) are locked down to `'self'` scripts,
+  with `frame-src` allowing only `poid:`/`http://poid.localhost`.
 - **WebView2 injects Tauri's IPC object into every frame**, including the
   sandboxed one, and it is not deletable (non-configurable). Verified
   empirically: an `invoke` from the sandbox's opaque origin is dropped by

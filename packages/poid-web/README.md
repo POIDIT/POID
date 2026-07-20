@@ -26,9 +26,12 @@ CDN serving static files; it never sees a POID.
   Studio features.
 - No extra engines yet: `web+python` (Pyodide) and friends get an honest
   "engine not available" screen.
-- Multi-file applications: parity with the desktop reader of M04 — the entry
-  document runs sandboxed; subresource serving behind a synthetic origin is a
-  later milestone ([#5](https://github.com/POIDIT/POID/issues/5)).
+- Multi-file applications run (M09, [#5](https://github.com/POIDIT/POID/issues/5)):
+  the synthetic origin (SPEC §5.2.1) rewrites the entry's `src`/`href`
+  references to `data:` URLs of the container files, so an external
+  `<script src="main.js">` executes. References buried in CSS `url()` or
+  resolved by runtime dynamic imports are out of scope — every POID is bundled
+  at authoring time, which this serves losslessly.
 
 ## Build and run
 
