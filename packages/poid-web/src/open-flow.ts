@@ -20,6 +20,7 @@ import {
   type Scope,
   seedFromStore,
 } from "@poid/host";
+import { VaultWasmEngine } from "./vault-engine.js";
 import { isContainerError, loadPoidWasm, type WebPoidHandle } from "./wasm-api.js";
 
 /** The container was rejected by the validation core. */
@@ -119,12 +120,15 @@ export async function openBytes(bytes: Uint8Array): Promise<OpenOutcome> {
   return { kind: "runnable", facts, signature, poid, files };
 }
 
+/** The engines the Web Reader mounts with (both flush asynchronously). */
+export type WebRunEngine = IndexedDbEngine | VaultWasmEngine;
+
 /** A mounted (or consent-declined) reader session. */
 export interface RunSession {
   handle: ReaderHandle;
   /** False when the user chose Cancel on the consent screen. */
   ran: boolean;
-  engine: IndexedDbEngine;
+  engine: WebRunEngine;
   scope: Scope;
 }
 
@@ -132,30 +136,37 @@ export interface RunSession {
  * Shows consent and, on Run, mounts the reader (`@poid/host` — the same
  * consent, sandbox, broker and watchdog as the desktop reader).
  *
- * The engine is hydrated (and, for `embedded` mode, seeded from
- * `data/store.json`) *before* consent, because the broker needs a live engine
- * at mount time; if the user cancels, a fresh seed is rolled back so a
- * declined app leaves no trace.
+ * `storage.mode` picks the engine: `vault` mounts the CRDT engine (the same
+ * Automerge document as the desktop vault, persisted in IndexedDB); anything
+ * else uses the embedded engine, seeded from `data/store.json` *before*
+ * consent — and rolled back if the user cancels, so a declined app leaves no
+ * trace.
  */
 export async function runContainer(
   outcome: RunnableOutcome,
   container: HTMLElement,
   sdkSource: string,
-  engine?: IndexedDbEngine,
+  engine?: WebRunEngine,
 ): Promise<RunSession> {
   const { facts, poid, files } = outcome;
   if (!facts.instanceId || !facts.entry) {
     // Unreachable: openBytes assigns the id and poid-core validated `entry`.
     throw new Error("runnable container without instance id or entry");
   }
-
-  const db = engine ?? (await IndexedDbEngine.open());
   const scope: Scope = { instanceId: facts.instanceId, slot: "" };
-  await db.hydrate(scope);
 
+  let db: WebRunEngine;
   let seeded = false;
-  if (facts.storageMode === "embedded" && !facts.protectedData && db.isEmpty(scope)) {
-    seeded = seedFromStore(db, scope, poid.data());
+  if (facts.storageMode === "vault") {
+    // A vault file carries no data (SPEC §6.1) — nothing to seed.
+    db = engine ?? (await VaultWasmEngine.open(await loadPoidWasm(), facts.instanceId));
+  } else {
+    const idb = engine instanceof IndexedDbEngine ? engine : await IndexedDbEngine.open();
+    await idb.hydrate(scope);
+    if (facts.storageMode === "embedded" && !facts.protectedData && idb.isEmpty(scope)) {
+      seeded = seedFromStore(idb, scope, poid.data());
+    }
+    db = idb;
   }
 
   const handle = await mountReader({
@@ -171,10 +182,11 @@ export async function runContainer(
     connectSrc: facts.permissions.network,
     sdkSource,
     engine: db,
+    quotaBytes: facts.quotaMb === null ? undefined : facts.quotaMb * 1024 * 1024,
   });
 
   const ran = handle.chrome !== undefined;
-  if (!ran && seeded) {
+  if (!ran && seeded && db instanceof IndexedDbEngine) {
     db.kvClear(scope);
     await db.flush();
   }

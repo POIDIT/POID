@@ -26,6 +26,8 @@ export interface ReaderManifestFacts {
   slots: boolean;
   /** `storage.protected` — data is encrypted at rest (SPEC §9.2). */
   protectedData: boolean;
+  /** `storage.quota_mb` — requested quota; null = the reader default (64). */
+  quotaMb: number | null;
   permissions: {
     network: string[];
     filesystem: "none" | "user-initiated";
@@ -89,6 +91,7 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
     storageMode,
     slots: asBool(storage.slots),
     protectedData: asBool(storage.protected),
+    quotaMb: typeof storage.quota_mb === "number" ? storage.quota_mb : null,
     permissions: {
       network: asStringArray(perms.network),
       filesystem: perms.filesystem === "user-initiated" ? "user-initiated" : "none",

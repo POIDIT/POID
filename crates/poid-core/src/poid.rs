@@ -11,6 +11,8 @@ use crate::write::{pack, PoidBuilder};
 
 /// Path of the embedded application state (SPEC §6.2).
 const DATA_STORE: &str = "data/store.json";
+/// Path of the encrypted embedded state when `storage.protected` (SPEC §9.2).
+const DATA_STORE_ENC: &str = "data/store.enc";
 
 /// A validated, opened container.
 ///
@@ -110,6 +112,77 @@ impl Poid {
         self.files.insert(DATA_STORE.to_owned(), data.to_vec());
     }
 
+    /// Replaces one named slot's embedded state, `slots/<name>/store.json`
+    /// (SPEC §6.4). The slot name becomes a container path segment, so it
+    /// must be a plain name — no separators, no traversal.
+    pub fn set_slot_data(&mut self, slot: &str, data: &[u8]) -> Result<(), PoidError> {
+        if slot.is_empty()
+            || slot.chars().any(|c| c == '/' || c == '\\' || c == '\0')
+            || slot == "."
+            || slot == ".."
+            || slot == "current"
+        {
+            return Err(PoidError::InvalidPath {
+                path: format!("slots/{slot}"),
+                why: "slot names must be plain names (no separators, not `current`)",
+            });
+        }
+        self.files
+            .insert(format!("slots/{slot}/store.json"), data.to_vec());
+        Ok(())
+    }
+
+    /// Writes the `slots/current` pointer (SPEC §6.4): the name of the
+    /// active slot, as plain UTF-8.
+    pub fn set_current_slot_pointer(&mut self, slot: &str) {
+        self.files
+            .insert("slots/current".to_owned(), slot.as_bytes().to_vec());
+    }
+
+    /// The encrypted embedded blob (`data/store.enc`), if present (SPEC §9.2).
+    pub fn protected_blob(&self) -> Option<&[u8]> {
+        self.file(DATA_STORE_ENC)
+    }
+
+    /// Whether `storage.protected` is set (SPEC §9.2).
+    pub fn is_protected(&self) -> bool {
+        self.manifest
+            .storage
+            .as_ref()
+            .and_then(|s| s.protected)
+            .unwrap_or(false)
+    }
+
+    /// Turns on `protected` (SPEC §9.2): stores the encrypted `envelope` as
+    /// `data/store.enc`, removes the plaintext `data/store.json`, and sets the
+    /// manifest flag. The caller performs the encryption (this crate holds no
+    /// key material and no randomness).
+    pub fn set_protected_blob(&mut self, envelope: &[u8]) {
+        self.files.remove(DATA_STORE);
+        self.files
+            .insert(DATA_STORE_ENC.to_owned(), envelope.to_vec());
+        self.storage_mut().protected = Some(true);
+    }
+
+    /// Turns off `protected`: stores decrypted `plaintext` as
+    /// `data/store.json`, removes `data/store.enc`, and clears the flag.
+    pub fn set_plain_data(&mut self, plaintext: &[u8]) {
+        self.files.remove(DATA_STORE_ENC);
+        self.files.insert(DATA_STORE.to_owned(), plaintext.to_vec());
+        self.storage_mut().protected = Some(false);
+    }
+
+    fn storage_mut(&mut self) -> &mut Storage {
+        self.manifest.storage.get_or_insert_with(|| Storage {
+            mode: StorageMode::Embedded,
+            slots: None,
+            protected: None,
+            quota_mb: None,
+            requires: None,
+            extra: ExtraFields::new(),
+        })
+    }
+
     /// Implements *"Duplicate as empty"* (SPEC §6.3): clears `data/` and
     /// `slots/`, and resets `instance.id` to `null` so the reader assigns a
     /// fresh identity on next open.
@@ -124,14 +197,7 @@ impl Poid {
     /// `data/` and `slots/` trees from the container — extract [`Self::data`]
     /// first if it must migrate into the vault or a connection.
     pub fn convert_storage_mode(&mut self, mode: StorageMode) {
-        let storage = self.manifest.storage.get_or_insert_with(|| Storage {
-            mode: StorageMode::Embedded,
-            slots: None,
-            protected: None,
-            quota_mb: None,
-            requires: None,
-            extra: ExtraFields::new(),
-        });
+        let storage = self.storage_mut();
         let leaving_embedded =
             storage.mode == StorageMode::Embedded && mode != StorageMode::Embedded;
         storage.mode = mode;

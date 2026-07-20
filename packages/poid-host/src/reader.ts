@@ -44,6 +44,12 @@ export interface MountOptions {
   connections?: Map<string, Connection>;
   /** Storage backend; defaults to in-memory. */
   engine?: DataEngine;
+  /** Per-POID quota in bytes; defaults to 64 MB (SPEC `storage.quota_mb`). */
+  quotaBytes?: number;
+  /** The active slot and the slot list (SPEC §6.4); defaults to a single
+   * anonymous slot. The application never chooses these — the reader does. */
+  currentSlot?: string;
+  slotNames?: string[];
   /** Watchdog tuning (short intervals in tests). */
   watchdog?: WatchdogOptions;
 }
@@ -97,9 +103,9 @@ function run(options: MountOptions, handle: ReaderHandle): ReaderHandle {
       storageMode: options.manifest.storageMode,
     },
     capabilities: new Set(options.capabilities),
-    slots: [],
-    currentSlot: "",
-    quotaBytes: 64 * 1024 * 1024,
+    slots: options.slotNames ?? [],
+    currentSlot: options.currentSlot ?? "",
+    quotaBytes: options.quotaBytes ?? 64 * 1024 * 1024,
     connections: options.connections ?? new Map(),
   };
   broker.register(sessionId, session);

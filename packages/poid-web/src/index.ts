@@ -29,6 +29,7 @@ export {
   type RunSession,
   runContainer,
 } from "./open-flow.js";
+export { VaultWasmEngine } from "./vault-engine.js";
 export {
   type ContainerErrorLike,
   isContainerError,
