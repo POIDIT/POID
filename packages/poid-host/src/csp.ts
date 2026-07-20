@@ -10,6 +10,32 @@
 export interface CspOptions {
   /** Approved origins from `permissions.network`; empty = no network at all. */
   connectSrc?: string[];
+  /**
+   * The synthetic origin's CSP source for the app's own subresources
+   * (SPEC §5.2.1): a bare scheme-source (`poid:`) or origin
+   * (`http://poid.localhost`). The application document has an **opaque**
+   * origin (sandbox `allow-scripts`, no `allow-same-origin`), so `'self'`
+   * matches nothing — `<script src="app/main.js">` only runs if `script-src`
+   * names the origin that serves it. Empty (the blob fallback) means
+   * inline-only: subresources do not load, single-file parity.
+   */
+  assetSource?: string;
+}
+
+/** Validates the synthetic-origin asset source: a bare `scheme:` or a bare
+ * `scheme://host(:port)`, with nothing a CSP injection could smuggle. */
+function isSafeAssetSource(source: string): boolean {
+  if (/[;,'"\s]/.test(source)) return false;
+  // A bare scheme-source, e.g. `poid:`.
+  if (/^[a-z][a-z0-9+.-]*:$/i.test(source)) return true;
+  try {
+    const u = new URL(source);
+    if (u.username || u.password || u.search || u.hash) return false;
+    if (u.pathname !== "/" && u.pathname !== "") return false;
+    return source === u.origin;
+  } catch {
+    return false;
+  }
 }
 
 /** Validates that a granted network origin is a bare scheme+host(+port), so an
@@ -37,17 +63,23 @@ function isSafeOrigin(origin: string): boolean {
 export function buildCsp(options: CspOptions = {}): string {
   const origins = (options.connectSrc ?? []).filter(isSafeOrigin);
   const connect = origins.length > 0 ? `connect-src ${origins.join(" ")}` : "connect-src 'none'";
+  // The synthetic origin serving the app's subresources (SPEC §5.2.1). `'self'`
+  // is kept for the blob fallback's data:/blob: cases and is harmless (it
+  // matches nothing under an opaque origin); `'unsafe-inline'` keeps
+  // M06-inlined single-file POIDs working.
+  const asset =
+    options.assetSource && isSafeAssetSource(options.assetSource) ? options.assetSource : "";
+  const src = (extra: string) =>
+    [`'self'`, "'unsafe-inline'", asset, extra].filter(Boolean).join(" ");
   return [
     "default-src 'self'",
     connect,
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",
-    // Scripts and styles come from the container's opaque origin; inline is
-    // needed for the injected bootstrap and app markup.
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    `script-src ${src("")}`,
+    `style-src ${src("")}`,
+    `img-src ${src("data: blob:")}`,
   ].join("; ");
 }
 

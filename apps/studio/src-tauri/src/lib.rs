@@ -9,6 +9,7 @@
 //! argv of each later launch here, and this process answers with a new
 //! Reader window. N documents = N windows, one process — like Excel.
 
+mod asset_registry;
 mod association;
 mod cli;
 mod commands;
@@ -19,6 +20,7 @@ mod windows;
 
 use tauri::{Manager, WindowEvent};
 
+use crate::asset_registry::{split_request, SessionAssets};
 use crate::state::Documents;
 
 /// Builds and runs the Studio application. Exits the process on a fatal
@@ -37,10 +39,57 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
+        .manage(SessionAssets::default())
+        // The synthetic origin (SPEC §5.2.1): serve the sandboxed app and its
+        // relative subresources from `poid://`, and nothing else. Registered
+        // per session by the Reader window; the raw container, the vault, and
+        // the host are never at any `poid://` URL.
+        .register_asynchronous_uri_scheme_protocol("poid", |ctx, request, responder| {
+            let assets = ctx.app_handle().state::<SessionAssets>();
+            let uri = request.uri();
+            let response = match split_request(uri.path()) {
+                Some((session, path)) => {
+                    // The origin root serves the entry; the reader registers the
+                    // injected entry under its own container path AND at "".
+                    match assets
+                        .get(&session, &path)
+                        .or_else(|| assets.get(&session, ""))
+                    {
+                        // ACAO: the sandboxed app has an *opaque* origin, so a
+                        // `<script type="module">` (CORS-mode) fetch of a
+                        // subresource is cross-origin and would be blocked
+                        // without this header. Safe: these are the app's own
+                        // public bytes, and `connect-src 'none'` still stops
+                        // the app from reaching anything else.
+                        Some(asset) => tauri::http::Response::builder()
+                            .status(200)
+                            .header("Content-Type", asset.content_type)
+                            .header("Access-Control-Allow-Origin", "*")
+                            .body(asset.bytes),
+                        None => tauri::http::Response::builder()
+                            .status(404)
+                            .header("Content-Type", "text/plain")
+                            .header("Access-Control-Allow-Origin", "*")
+                            .body(b"not found".to_vec()),
+                    }
+                }
+                None => tauri::http::Response::builder()
+                    .status(404)
+                    .header("Content-Type", "text/plain")
+                    .body(b"not found".to_vec()),
+            };
+            match response {
+                Ok(r) => responder.respond(r),
+                Err(e) => eprintln!("poid-studio: poid:// response build failed: {e}"),
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::reader_bootstrap,
             commands::open_document,
             commands::resolve_copy_conflict,
+            commands::synthetic_origin,
+            commands::register_session_assets,
+            commands::revoke_session_assets,
             commands::vault_hydrate,
             commands::vault_kv_set,
             commands::vault_kv_delete,

@@ -21,6 +21,13 @@ import type { ServedResponse } from "./container-server.js";
 /** Serves one session's assets from an isolated, reader-controlled origin. */
 export interface SyntheticOrigin {
   /**
+   * The CSP source the entry document must name so its own subresources load
+   * (SPEC §5.2.1): a bare `scheme:` or `scheme://host`. Empty for the blob
+   * fallback (inline-only). The reader bakes this into the CSP before serving.
+   */
+  cspAssetSource(): string;
+
+  /**
    * Registers a session's assets and returns the URL the iframe should load
    * (the injected entry document at the session's origin root).
    */
@@ -39,6 +46,11 @@ export class BlobOrigin implements SyntheticOrigin {
   private readonly urls = new Map<string, string>();
 
   constructor(private readonly win: { URL: typeof URL } = globalThis) {}
+
+  cspAssetSource(): string {
+    // A blob document is opaque; there is no origin subresources could name.
+    return "";
+  }
 
   serve(
     sessionId: string,

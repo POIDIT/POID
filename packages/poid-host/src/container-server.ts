@@ -159,6 +159,9 @@ export function injectRuntime(
     const insertAt = html.indexOf(">", headIdx) + 1;
     return `${html.slice(0, insertAt)}\n${injected}${html.slice(insertAt)}`;
   }
-  // No <head>: prepend a minimal one.
-  return `<!doctype html><head>\n${injected}</head>${html}`;
+  // No <head>: prepend a minimal one, moving any leading doctype ahead of it
+  // so the document has exactly one, at the top.
+  const doctype = html.match(/^\s*<!doctype[^>]*>/i);
+  const rest = doctype ? html.slice(doctype[0].length) : html;
+  return `${doctype ? doctype[0] : "<!doctype html>"}<head>\n${injected}</head>${rest}`;
 }

@@ -122,6 +122,12 @@ async function run(options: MountOptions, handle: ReaderHandle): Promise<ReaderH
   );
   handle.chrome = chrome;
 
+  // The synthetic origin (SPEC §5.2.1) serves the app + subresources so a
+  // multi-file app's `<script src>` executes; its CSP asset-source is baked
+  // into the entry before serving. The blob fallback serves only the entry
+  // (single-file parity, inline-only).
+  const origin = options.origin ?? new BlobOrigin(doc.defaultView ?? globalThis);
+
   const server = new ContainerServer({
     files: options.files,
     entry: options.entry,
@@ -139,12 +145,8 @@ async function run(options: MountOptions, handle: ReaderHandle): Promise<ReaderH
       },
       capabilities: options.capabilities,
     },
-    csp: { connectSrc: options.connectSrc },
+    csp: { connectSrc: options.connectSrc, assetSource: origin.cspAssetSource() },
   });
-  // Serve the app and every subresource from the synthetic origin (SPEC
-  // §5.2.1) so a multi-file app's `<script src>` executes. The blob fallback
-  // serves only the entry (single-file parity).
-  const origin = options.origin ?? new BlobOrigin(doc.defaultView ?? globalThis);
   const src = await origin.serve(sessionId, server.assets(), server.entryPath);
 
   const iframe = doc.createElement("iframe");
