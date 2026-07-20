@@ -14,10 +14,11 @@ workspace = true
 # index). The WASM build turns it off and gets the pure document engine plus
 # the crypto envelope: bytes in, bytes out.
 default = ["fs"]
-fs = ["dep:sha2"]
+fs = ["dep:sha2", "dep:poid-core"]
 
 [dependencies]
 automerge = "0.10"
+poid-core = { workspace = true, optional = true }
 thiserror.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

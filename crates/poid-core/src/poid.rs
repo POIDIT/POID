@@ -110,6 +110,33 @@ impl Poid {
         self.files.insert(DATA_STORE.to_owned(), data.to_vec());
     }
 
+    /// Replaces one named slot's embedded state, `slots/<name>/store.json`
+    /// (SPEC §6.4). The slot name becomes a container path segment, so it
+    /// must be a plain name — no separators, no traversal.
+    pub fn set_slot_data(&mut self, slot: &str, data: &[u8]) -> Result<(), PoidError> {
+        if slot.is_empty()
+            || slot.chars().any(|c| c == '/' || c == '\\' || c == '\0')
+            || slot == "."
+            || slot == ".."
+            || slot == "current"
+        {
+            return Err(PoidError::InvalidPath {
+                path: format!("slots/{slot}"),
+                why: "slot names must be plain names (no separators, not `current`)",
+            });
+        }
+        self.files
+            .insert(format!("slots/{slot}/store.json"), data.to_vec());
+        Ok(())
+    }
+
+    /// Writes the `slots/current` pointer (SPEC §6.4): the name of the
+    /// active slot, as plain UTF-8.
+    pub fn set_current_slot_pointer(&mut self, slot: &str) {
+        self.files
+            .insert("slots/current".to_owned(), slot.as_bytes().to_vec());
+    }
+
     /// Implements *"Duplicate as empty"* (SPEC §6.3): clears `data/` and
     /// `slots/`, and resets `instance.id` to `null` so the reader assigns a
     /// fresh identity on next open.
