@@ -16,7 +16,10 @@ mod windows_impl {
     use tauri::path::BaseDirectory;
     use tauri::{AppHandle, Manager};
 
-    const PROG_ID: &str = "POIDStudio.Document";
+    // The same ProgID the NSIS installer registers (FileAssociation.nsh keys
+    // the file class by its display name), so the runtime repair and the
+    // installer write the SAME registry keys instead of two competing ones.
+    const PROG_ID: &str = "POID Document";
     const MEDIA_TYPE: &str = "application/vnd.poid+zip";
 
     /// Sets `value` as the default string of `key_path` (creating the key),

@@ -17,9 +17,9 @@
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
-  DeleteRegKey HKCU "Software\Classes\POIDStudio.Document"
+  DeleteRegKey HKCU "Software\Classes\POID Document"
   ReadRegStr $0 HKCU "Software\Classes\.poid" ""
-  StrCmp $0 "POIDStudio.Document" 0 +2
+  StrCmp $0 "POID Document" 0 +2
   DeleteRegKey HKCU "Software\Classes\.poid"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0x1000, p 0, p 0)'
 !macroend
