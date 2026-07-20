@@ -22,7 +22,9 @@ exclude = ["tools/wasm-bindgen-driver", "apps/studio/src-tauri"]
 version = "0.0.1"
 edition = "2021"
 license = "Apache-2.0"
-rust-version = "1.82"
+# 1.89 is automerge 0.10's MSRV (the vault's CRDT engine, SPEC §6.5). Raised
+# from 1.82 in M08; CI builds on current stable.
+rust-version = "1.89"
 
 [workspace.dependencies]
 anyhow = "1"

@@ -9,5 +9,22 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+# `fs` carries everything that touches a filesystem (the store, the instance
+# index). The WASM build turns it off and gets the pure document engine plus
+# the crypto envelope: bytes in, bytes out.
+default = ["fs"]
+fs = ["dep:sha2"]
+
 [dependencies]
+automerge = "0.10"
 thiserror.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+aes-gcm = "0.10"
+argon2 = "0.5"
+sha2 = { version = "0.10", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
