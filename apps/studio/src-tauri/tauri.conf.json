@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "POID Studio",
+  "mainBinaryName": "poid-studio",
+  "version": "0.0.1",
+  "identifier": "dev.poid.studio",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @poid/studio build:ui",
+    "beforeBuildCommand": "pnpm --filter @poid/studio build:ui",
+    "frontendDist": "../dist-ui"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "dmg", "deb", "rpm", "appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": ["icons/poid-document.ico"],
+    "fileAssociations": [
+      {
+        "ext": ["poid"],
+        "name": "POID Document",
+        "description": "A POID document: an application, its data and its dependencies in one file",
+        "mimeType": "application/vnd.poid+zip",
+        "role": "Viewer"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "installer/hooks.nsh"
+      }
+    },
+    "category": "Productivity",
+    "shortDescription": "Opens POID documents",
+    "longDescription": "POID Studio opens .poid documents: self-contained applications that run in a sandbox, offline, with no installation.",
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/mime/packages/poid.xml": "linux/poid-mime.xml",
+          "/usr/share/icons/hicolor/128x128/mimetypes/application-vnd.poid+zip.png": "icons/poid-document-128.png",
+          "/usr/share/icons/hicolor/32x32/mimetypes/application-vnd.poid+zip.png": "icons/poid-document-32.png"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/mime/packages/poid.xml": "linux/poid-mime.xml",
+          "/usr/share/icons/hicolor/128x128/mimetypes/application-vnd.poid+zip.png": "icons/poid-document-128.png",
+          "/usr/share/icons/hicolor/32x32/mimetypes/application-vnd.poid+zip.png": "icons/poid-document-32.png"
+        }
+      }
+    }
+  }
+}

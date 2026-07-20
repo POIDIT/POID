@@ -11,7 +11,12 @@ members = [
 ]
 # A build tool, not a product crate: kept out of the workspace so its heavy
 # dependency graph (walrus, wasmparser) stays out of `cargo test/clippy`.
-exclude = ["tools/wasm-bindgen-driver"]
+#
+# poid-studio (Tauri) is a product crate but is also excluded: it only builds
+# where a system webview toolchain exists (WebView2 / WebKitGTK / WKWebView),
+# and pulling it in would break `cargo test --workspace` on bare CI runners.
+# The dedicated Studio CI job builds it per-OS with the system deps installed.
+exclude = ["tools/wasm-bindgen-driver", "apps/studio/src-tauri"]
 
 [workspace.package]
 version = "0.0.1"

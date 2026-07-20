@@ -10,10 +10,21 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:ui": "node scripts/build-ui.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@poid/host": "workspace:*",
+    "@poid/sdk": "workspace:*",
+    "@poid/ui": "workspace:*",
+    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.2.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0",
+    "esbuild": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

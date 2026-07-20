@@ -1,0 +1,329 @@
+/* POID Studio windows: the hub and the Reader chrome, plus the shared
+ * consent/chrome/outcome classes rendered by @poid/ui — the same design
+ * language as the Web Reader (packages/poid-web/public/styles.css), so a
+ * document looks the same wherever it opens. Self-contained: system fonts,
+ * no external resources. */
+
+:root {
+  --bg: #101418;
+  --panel: #1a2027;
+  --panel-2: #232b34;
+  --text: #e8edf2;
+  --muted: #9aa7b3;
+  --accent: #4cc38a;
+  --danger: #e5534b;
+  --border: #313b46;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f8fa;
+    --panel: #ffffff;
+    --panel-2: #eef1f4;
+    --text: #1c2530;
+    --muted: #57646f;
+    --border: #d5dce2;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  font: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+/* ---- The hub (Studio window) ---- */
+
+.poid-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.poid-header__mark {
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.poid-header__name {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.poid-header__sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.hub {
+  flex: 1;
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.hub__title {
+  margin: 0 0 0.4rem;
+}
+
+.hub__hint {
+  color: var(--muted);
+  max-width: 40rem;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.poid-drop__pick {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #08130d;
+  font-weight: 600;
+}
+
+.hub__tiles {
+  margin-top: 2.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+
+.hub__tile {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem 1.25rem;
+  opacity: 0.6;
+}
+
+.hub__tile h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.hub__tile p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.hub__soon {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.9rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+}
+
+/* ---- The Reader window: the document fills the window ---- */
+
+.reader-window {
+  height: 100vh;
+}
+
+.poid-reader-host {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.poid-reader-host--window {
+  height: 100%;
+}
+
+.poid-reader-host iframe {
+  border: 0;
+  flex: 1;
+  width: 100%;
+  background: #fff;
+}
+
+/* Outcome panels (rejections and notices) */
+
+.poid-reader-host main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem;
+  overflow: auto;
+}
+
+.poid-outcome {
+  max-width: 34rem;
+  width: 100%;
+  margin-top: 8vh;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 2rem 2rem;
+  line-height: 1.55;
+}
+
+.poid-outcome--error {
+  border-color: var(--danger);
+}
+
+.poid-outcome h2 {
+  margin-top: 0.25rem;
+}
+
+.poid-outcome__code {
+  display: inline-block;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.85rem;
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+}
+
+.poid-outcome__detail {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.poid-outcome__safe {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Consent screen (@poid/ui classes) */
+
+.poid-consent {
+  margin: 2rem auto;
+  max-width: 28rem;
+  width: calc(100% - 3rem);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.75rem 1.5rem;
+}
+
+.poid-consent__name {
+  font-size: 1.3rem;
+  margin: 0 0.5rem 0 0;
+  display: inline;
+}
+
+.poid-consent__version,
+.poid-consent__author {
+  color: var(--muted);
+  margin-right: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.poid-consent__sig {
+  font-size: 0.9rem;
+}
+
+.poid-consent h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 1.25rem 0 0.4rem;
+}
+
+.poid-consent ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.poid-consent__yes {
+  color: var(--text);
+}
+
+.poid-consent__no {
+  color: var(--muted);
+}
+
+.poid-consent__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.poid-consent__run {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #08130d;
+  font-weight: 600;
+}
+
+/* Reader chrome (@poid/ui classes) */
+
+.poid-chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.9rem;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.poid-chrome__title {
+  font-weight: 600;
+  flex: 1;
+}
+
+.poid-chrome__badge {
+  font-size: 0.75rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+
+.poid-chrome__stop {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.8rem;
+}
+
+.poid-chrome--unresponsive .poid-chrome__stop {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.poid-chrome__dirty {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
