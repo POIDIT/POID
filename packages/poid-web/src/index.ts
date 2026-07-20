@@ -5,17 +5,21 @@
  * building blocks.
  */
 
-export { mountBanner } from "./banner.js";
-export { triggerDownload, updatedFileBytes } from "./download.js";
-export { explain, FALLBACK_EXPLANATION, REGISTRY_EXPLANATIONS } from "./errors.js";
-export { IndexedDbEngine } from "./idb-engine.js";
+// Reader logic shared with the desktop Reader lives in `@poid/host` since M07;
+// re-exported here so the Web Reader's public surface is unchanged.
 export {
   consentManifestFrom,
+  explain,
   extractFacts,
+  FALLBACK_EXPLANATION,
   hostFacts,
+  IndexedDbEngine,
+  REGISTRY_EXPLANATIONS,
+  type ReaderManifestFacts as WebManifestFacts,
   runGrant,
-  type WebManifestFacts,
-} from "./manifest-facts.js";
+} from "@poid/host";
+export { mountBanner } from "./banner.js";
+export { triggerDownload, updatedFileBytes } from "./download.js";
 export {
   type NoticeOutcome,
   type OpenOutcome,

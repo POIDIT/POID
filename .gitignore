@@ -24,6 +24,11 @@ packages/poid-web/src/wasm/
 packages/poid-web/site/
 tools/wasm-bindgen-driver/target/
 
+# POID Studio (Tauri) build artifacts
+apps/studio/dist-ui/
+apps/studio/src-tauri/target/
+apps/studio/src-tauri/gen/
+
 # Standard Library build artifacts (rebuilt deterministically; checksums committed)
 packages/poid-stdlib/lib/
 packages/poid-stdlib/.cache/

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The host UI windows (the hub and every Reader). The application inside the sandboxed iframe is NOT covered: it runs on an opaque origin with no IPC object, and its only channel is the audited postMessage bridge.",
+  "windows": ["studio", "reader-*"],
+  "permissions": ["core:default", "dialog:default"]
+}

@@ -1,0 +1,42 @@
+[package]
+name = "poid-studio"
+version = "0.0.1"
+description = "POID Studio - the one executable: Reader windows and the Studio hub"
+authors = ["POID contributors"]
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.82"
+
+# Excluded from the root workspace (see the root Cargo.toml): this crate only
+# builds where a system webview exists, so it has its own lockfile and is
+# built by the dedicated Studio CI job, not `cargo test --workspace`.
+
+[lib]
+name = "poid_studio_lib"
+# staticlib/cdylib are required by Tauri's mobile targets (a later milestone);
+# desktop uses the rlib.
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+poid-core = { path = "../../../crates/poid-core" }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows-sys = { version = "0.60", features = ["Win32_UI_Shell"] }
+
+# The same bars as the workspace (this crate cannot inherit them from there).
+[lints.rust]
+missing_docs = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

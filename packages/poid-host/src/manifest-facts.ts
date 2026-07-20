@@ -1,14 +1,15 @@
 /**
- * Extracts the facts the Web Reader needs from a manifest that `poid-core`
- * has **already validated** — parsing here is mechanical field access with
- * spec defaults (SPEC §3.1), never re-validation.
+ * Extracts the facts a reader needs from a manifest that `poid-core` has
+ * **already validated** — parsing here is mechanical field access with
+ * spec defaults (SPEC §3.1), never re-validation. Shared by the Web Reader
+ * and the desktop Reader windows: one interpretation of the manifest, not two.
  */
 
-import type { Grant, ManifestFacts } from "@poid/host";
 import type { ConsentManifest } from "@poid/ui";
+import type { Grant, ManifestFacts } from "./capabilities.js";
 
-/** The manifest slice the Web Reader consumes (SPEC §3.1). */
-export interface WebManifestFacts {
+/** The manifest slice a reader consumes (SPEC §3.1). */
+export interface ReaderManifestFacts {
   type: "app" | "data" | "workspace";
   /** Display name; for `type: data` the referenced `app_id`. */
   name: string;
@@ -64,8 +65,8 @@ function asStringRecord(v: unknown): Record<string, string> {
   return out;
 }
 
-/** Reads the Web Reader's manifest facts out of the validated manifest JSON. */
-export function extractFacts(manifestJson: string): WebManifestFacts {
+/** Reads a reader's manifest facts out of the validated manifest JSON. */
+export function extractFacts(manifestJson: string): ReaderManifestFacts {
   const m = asRecord(JSON.parse(manifestJson));
   const app = asRecord(m.app);
   const runtime = asRecord(m.runtime);
@@ -77,7 +78,7 @@ export function extractFacts(manifestJson: string): WebManifestFacts {
   const storageMode =
     storage.mode === "vault" || storage.mode === "connection" ? storage.mode : "embedded";
 
-  const facts: WebManifestFacts = {
+  const facts: ReaderManifestFacts = {
     type,
     name: asString(app.name, "Untitled"),
     version: asString(app.version, "0.0.0"),
@@ -113,7 +114,7 @@ export function extractFacts(manifestJson: string): WebManifestFacts {
 
 /** Shapes the facts for the consent screen (SPEC §9.1). */
 export function consentManifestFrom(
-  facts: WebManifestFacts,
+  facts: ReaderManifestFacts,
   signature: "none" | "valid" | "invalid",
 ): ConsentManifest {
   const consent: ConsentManifest = {
@@ -127,7 +128,7 @@ export function consentManifestFrom(
 }
 
 /** Shapes the facts for `capabilitiesFromGrant` (`@poid/host`). */
-export function hostFacts(facts: WebManifestFacts): ManifestFacts {
+export function hostFacts(facts: ReaderManifestFacts): ManifestFacts {
   return {
     storageMode: facts.storageMode,
     storageSlots: facts.slots,
@@ -143,7 +144,7 @@ export function hostFacts(facts: WebManifestFacts): ManifestFacts {
  * toggles are a later milestone. `ai` is never granted here: the web reader
  * has no Connections and holds no keys.
  */
-export function runGrant(facts: WebManifestFacts): Grant {
+export function runGrant(facts: ReaderManifestFacts): Grant {
   return {
     network: facts.permissions.network,
     filesystem: facts.permissions.filesystem === "user-initiated",

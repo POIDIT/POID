@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- shared-mime-info definition for the POID container (SPEC §2.1, §13).
+     Magic: a ZIP local header whose first entry is the literal `mimetype`
+     file carrying the media type - the same detection ODF uses, so a renamed
+     ZIP is not mistaken for a POID. Installed by the .deb/.rpm packages to
+     /usr/share/mime/packages/. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/vnd.poid+zip">
+    <comment>POID document</comment>
+    <comment xml:lang="pl">Dokument POID</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.poid"/>
+    <magic priority="70">
+      <match type="string" offset="0" value="PK\003\004">
+        <match type="string" offset="30" value="mimetypeapplication/vnd.poid+zip"/>
+      </match>
+    </magic>
+    <generic-icon name="application-vnd.poid+zip"/>
+  </mime-type>
+</mime-info>

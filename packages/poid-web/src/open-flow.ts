@@ -6,16 +6,20 @@
  * don't hide them).
  */
 
-import { capabilitiesFromGrant, mountReader, type ReaderHandle, type Scope } from "@poid/host";
-import { explain } from "./errors.js";
-import { IndexedDbEngine } from "./idb-engine.js";
 import {
+  capabilitiesFromGrant,
   consentManifestFrom,
+  explain,
   extractFacts,
   hostFacts,
+  IndexedDbEngine,
+  mountReader,
+  type ReaderHandle,
+  type ReaderManifestFacts,
   runGrant,
-  type WebManifestFacts,
-} from "./manifest-facts.js";
+  type Scope,
+  seedFromStore,
+} from "@poid/host";
 import { isContainerError, loadPoidWasm, type WebPoidHandle } from "./wasm-api.js";
 
 /** The container was rejected by the validation core. */
@@ -34,7 +38,7 @@ export interface RejectedOutcome {
 /** The container is valid but is not a runnable app for this reader. */
 export interface NoticeOutcome {
   kind: "data-container" | "workspace" | "engine-missing";
-  facts: WebManifestFacts;
+  facts: ReaderManifestFacts;
   /** For `engine-missing`: the engines the manifest calls for. */
   missingEngines: string[];
 }
@@ -42,7 +46,7 @@ export interface NoticeOutcome {
 /** A runnable `type: app`, `web` profile container. */
 export interface RunnableOutcome {
   kind: "runnable";
-  facts: WebManifestFacts;
+  facts: ReaderManifestFacts;
   signature: "none" | "valid";
   poid: WebPoidHandle;
   files: Map<string, Uint8Array>;
@@ -175,19 +179,4 @@ export async function runContainer(
     await db.flush();
   }
   return { handle, ran, engine: db, scope };
-}
-
-/** Seeds the engine from an embedded `data/store.json`, if it parses to an
- * object (SPEC §6.2). Returns true when anything was seeded. */
-function seedFromStore(db: IndexedDbEngine, scope: Scope, data: Uint8Array | undefined): boolean {
-  if (!data) return false;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(new TextDecoder().decode(data));
-  } catch {
-    return false;
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return false;
-  db.seed(scope, parsed as Record<string, unknown>);
-  return !db.isEmpty(scope);
 }

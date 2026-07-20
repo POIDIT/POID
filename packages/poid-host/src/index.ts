@@ -30,6 +30,16 @@ export {
   engineSatisfies,
   verifyEngine,
 } from "./engines.js";
+export { explain, FALLBACK_EXPLANATION, REGISTRY_EXPLANATIONS } from "./explanations.js";
 export { type GuardResult, guardRequest, SCOPE_FIELDS } from "./guard.js";
+export { IndexedDbEngine } from "./idb-engine.js";
+export {
+  consentManifestFrom,
+  extractFacts,
+  hostFacts,
+  type ReaderManifestFacts,
+  runGrant,
+} from "./manifest-facts.js";
 export { type MountOptions, mountReader, type ReaderHandle } from "./reader.js";
+export { seedFromStore } from "./seed.js";
 export { Watchdog, type WatchdogClock, type WatchdogOptions } from "./watchdog.js";
