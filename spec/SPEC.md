@@ -245,7 +245,7 @@ Nothing else. There is no other execution path.
 
 A conformant reader **MUST**:
 
-1. Load `entry` inside a **sandboxed iframe** (`sandbox="allow-scripts"`), or an equivalent isolation primitive on platforms without iframes.
+1. Load `entry` inside a **sandboxed iframe** (`sandbox="allow-scripts"`, **never** `allow-same-origin`), or an equivalent isolation primitive on platforms without iframes.
 2. Apply a Content-Security-Policy that at minimum enforces:
    ```
    default-src 'self';
@@ -254,9 +254,40 @@ A conformant reader **MUST**:
    base-uri 'none';
    form-action 'none';
    ```
-   `connect-src` **MUST** be widened only to origins explicitly listed in `permissions.network` **and** approved by the user.
-3. Serve container contents from an opaque origin — the application **MUST NOT** be able to read the container file itself, the vault, other POIDs, or the host filesystem.
+   `connect-src` **MUST** be widened only to origins explicitly listed in `permissions.network` **and** approved by the user. `script-src`/`style-src` **MUST NOT** be widened beyond the container's own dedicated origin (§5.2.1).
+3. Serve container contents from a **dedicated origin the reader controls** (§5.2.1), isolated from the host: the application **MUST NOT** be able to read the container file itself, the vault, other POIDs, the host page, or the host filesystem.
 4. Route **all** privileged operations through a **broker** in the reader core (see §7).
+
+#### 5.2.1 The container's dedicated origin (synthetic origin)
+
+A reader **MUST** serve the application and every relative subresource
+(`app/main.js`, stylesheets, images, fonts, WASM) from an origin that:
+
+- serves **only** container bytes (`ContainerServer.resolve()` in this
+  repository is the single path→response authority), and
+- is **isolated from the host origin** — cross-origin from the reader UI,
+  the vault, and every other open instance, and never reachable by the
+  application except as relative URLs within its own tree.
+
+Two conformant realisations of this origin are used in this repository:
+
+| Reader | Mechanism | Origin |
+|---|---|---|
+| Desktop (Tauri) | a custom URI-scheme protocol handler | `poid://<session>/…` |
+| Web | a service worker serving a per-session scope | a reader-controlled path/origin |
+
+> **Amendment note (M09):** through M08 this clause read *"serve container
+> contents from an **opaque** origin."* An opaque origin has no name a CSP
+> `script-src` can reference, so `<script src="app/main.js">` never executes —
+> only inline scripts run, and a multi-file application (e.g. the `react-app`
+> conformance fixture) renders its markup but not its bundle. M06 worked
+> around this by inlining the whole application into one HTML document. The
+> fix (issue #5) is to serve subresources from a **named, reader-controlled
+> origin** so `script-src 'self'` resolves to container content and nothing
+> else; isolation is then provided by that origin's separation from the host
+> (cross-origin) plus `sandbox="allow-scripts"` without `allow-same-origin`,
+> rather than by opaqueness. Recorded here per CONVENTIONS ("the spec and the
+> code must never quietly diverge").
 
 ### 5.3 Frameworks
 

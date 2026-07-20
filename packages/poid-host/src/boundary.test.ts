@@ -198,6 +198,54 @@ describe("container server", () => {
     expect(html).not.toContain("</script><script>alert(1)");
     expect(html).toContain("\\u003c");
   });
+
+  it("assets() serves the injected entry plus every subresource (SPEC §5.2.1)", () => {
+    const server = new ContainerServer({
+      files,
+      entry: "app/index.html",
+      sdkSource: "/*sdk*/",
+      bootstrap,
+    });
+    const assets = server.assets();
+    // The entry is the injected HTML (CSP + bootstrap), not the raw file.
+    const entry = assets.get("app/index.html");
+    expect(entry?.contentType).toContain("text/html");
+    expect(new TextDecoder().decode(entry?.body)).toContain("__POID_BOOTSTRAP__");
+    // Every subresource is present at its own path, with a real MIME type —
+    // this is what makes `<script src="app/main.js">` resolve.
+    const js = assets.get("app/main.js");
+    expect(js?.contentType).toContain("javascript");
+    expect(new TextDecoder().decode(js?.body)).toBe("console.log(1)");
+    // The container's own state is never an asset.
+    expect(assets.has("data/store.json")).toBe(false);
+  });
+});
+
+describe("blob origin (single-file fallback)", () => {
+  it("serves the entry as an object URL and revokes it", async () => {
+    const created: string[] = [];
+    const revoked: string[] = [];
+    const fakeUrl = {
+      createObjectURL: () => {
+        const u = `blob:fake-${created.length}`;
+        created.push(u);
+        return u;
+      },
+      revokeObjectURL: (u: string) => revoked.push(u),
+    } as unknown as typeof URL;
+    const { BlobOrigin } = await import("./origin.js");
+    const origin = new BlobOrigin({ URL: fakeUrl });
+    const assets = new Map([
+      [
+        "app/index.html",
+        { status: 200, contentType: "text/html", body: new TextEncoder().encode("<html></html>") },
+      ],
+    ]);
+    const src = await origin.serve("s1", assets, "app/index.html");
+    expect(src).toBe("blob:fake-0");
+    origin.revoke("s1");
+    expect(revoked).toEqual(["blob:fake-0"]);
+  });
 });
 
 describe("bridge attributes messages by window, not by body", () => {

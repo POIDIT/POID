@@ -17,6 +17,7 @@ import { Broker, type BrokerHandlers, type Connection, type ReaderSession } from
 import { ContainerServer } from "./container-server.js";
 import { SANDBOX_TOKENS } from "./csp.js";
 import { type DataEngine, InMemoryEngine } from "./engine.js";
+import { BlobOrigin, type SyntheticOrigin } from "./origin.js";
 import { Watchdog, type WatchdogOptions } from "./watchdog.js";
 
 /** Everything needed to open one POID in a reader window. */
@@ -50,6 +51,9 @@ export interface MountOptions {
    * anonymous slot. The application never chooses these — the reader does. */
   currentSlot?: string;
   slotNames?: string[];
+  /** The synthetic origin that serves the app + subresources (SPEC §5.2.1).
+   * Defaults to {@link BlobOrigin} — one document, no subresource serving. */
+  origin?: SyntheticOrigin;
   /** Watchdog tuning (short intervals in tests). */
   watchdog?: WatchdogOptions;
 }
@@ -80,7 +84,7 @@ export function mountReader(options: MountOptions): Promise<ReaderHandle> {
   });
 }
 
-function run(options: MountOptions, handle: ReaderHandle): ReaderHandle {
+async function run(options: MountOptions, handle: ReaderHandle): Promise<ReaderHandle> {
   const doc = options.container.ownerDocument;
   const engine = options.engine ?? new InMemoryEngine();
   const broker = new Broker(engine, { handlers: options.handlers });
@@ -137,14 +141,16 @@ function run(options: MountOptions, handle: ReaderHandle): ReaderHandle {
     },
     csp: { connectSrc: options.connectSrc },
   });
-  const entryHtml = new TextDecoder().decode(server.resolve(server.entryPath).body);
+  // Serve the app and every subresource from the synthetic origin (SPEC
+  // §5.2.1) so a multi-file app's `<script src>` executes. The blob fallback
+  // serves only the entry (single-file parity).
+  const origin = options.origin ?? new BlobOrigin(doc.defaultView ?? globalThis);
+  const src = await origin.serve(sessionId, server.assets(), server.entryPath);
 
   const iframe = doc.createElement("iframe");
   // The one line that must never regress: allow-scripts, never allow-same-origin.
   iframe.setAttribute("sandbox", SANDBOX_TOKENS);
-  const blob = new Blob([entryHtml], { type: "text/html" });
-  const blobUrl = URL.createObjectURL(blob);
-  iframe.src = blobUrl;
+  iframe.src = src;
   options.container.append(iframe);
 
   const win = iframe.contentWindow;
@@ -172,7 +178,7 @@ function run(options: MountOptions, handle: ReaderHandle): ReaderHandle {
     bridge.unregister(sessionId);
     broker.unregister(sessionId);
     iframe.remove();
-    URL.revokeObjectURL(blobUrl);
+    origin.revoke(sessionId);
   };
 
   return handle;
