@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
-import type { Scope } from "@poid/host";
 import { describe, expect, it } from "vitest";
+import type { Scope } from "./engine.js";
 import { IndexedDbEngine } from "./idb-engine.js";
 
 const scopeA: Scope = { instanceId: "aaaaaaaa-1111-4111-8111-111111111111", slot: "" };

@@ -25,7 +25,6 @@
     "@playwright/test": "^1.49.0",
     "@types/node": "^22.0.0",
     "esbuild": "catalog:",
-    "fake-indexeddb": "^6.0.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { explain, FALLBACK_EXPLANATION, REGISTRY_EXPLANATIONS } from "./errors.js";
+import { explain, FALLBACK_EXPLANATION, REGISTRY_EXPLANATIONS } from "./explanations.js";
 
 /** Every code that appears in the normative registry table. */
 function registryCodes(): string[] {
