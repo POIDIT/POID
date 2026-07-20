@@ -164,7 +164,7 @@ pub(crate) fn to_hex(bytes: &[u8]) -> String {
 
 /// Lowercase hex decoding; `None` on any non-hex character or odd length.
 fn decode_hex(s: &str) -> Option<Vec<u8>> {
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return None;
     }
     let nibble = |c: u8| -> Option<u8> {

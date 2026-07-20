@@ -903,6 +903,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "automerge",
+ "poid-core",
  "serde",
  "serde_json",
  "sha2 0.10.9",
