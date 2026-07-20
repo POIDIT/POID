@@ -55,10 +55,11 @@ impl VaultDoc {
     /// Sets `key` in `slot` to a JSON-encoded value (atomic replacement).
     #[wasm_bindgen(js_name = kvSet)]
     pub fn kv_set(&mut self, slot: &str, key: &str, json: &str) -> Result<(), JsValue> {
-        let value: serde_json::Value =
-            serde_json::from_str(json).map_err(|e| js_error(poid_vault::VaultError::InvalidValue {
+        let value: serde_json::Value = serde_json::from_str(json).map_err(|e| {
+            js_error(poid_vault::VaultError::InvalidValue {
                 message: e.to_string(),
-            }))?;
+            })
+        })?;
         self.doc.kv_set(slot, key, &value).map_err(js_error)
     }
 

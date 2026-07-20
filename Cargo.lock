@@ -858,6 +858,7 @@ dependencies = [
  "getrandom 0.3.4",
  "poid-convert",
  "poid-core",
+ "poid-vault",
  "predicates",
  "serde",
  "serde_json",

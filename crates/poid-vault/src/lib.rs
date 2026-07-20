@@ -17,6 +17,7 @@ pub mod doc;
 mod error;
 #[cfg(feature = "fs")]
 pub mod index;
+pub mod protect;
 #[cfg(feature = "fs")]
 pub mod store;
 
@@ -24,6 +25,7 @@ pub use doc::{InstanceDoc, DEFAULT_SLOT};
 pub use error::{Result, VaultError};
 #[cfg(feature = "fs")]
 pub use index::{hash_bytes, Disposition, IndexEntry, InstanceIndex};
+pub use protect::{Envelope, KdfParams, PROTECTED_PATH};
 #[cfg(feature = "fs")]
 pub use store::{atomic_write, Vault, VaultInstance, DEFAULT_QUOTA_BYTES};
 

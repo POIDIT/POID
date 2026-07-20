@@ -109,6 +109,23 @@ enum Command {
         /// The .poid file to verify.
         file: PathBuf,
     },
+    /// Encrypt a container's embedded data with a passphrase (SPEC §9.2).
+    /// AES-256-GCM + Argon2id. Sending a POID with no data is safer still.
+    Protect {
+        /// The .poid file to protect in place.
+        file: PathBuf,
+        /// The passphrase. Prefer POID_PASSPHRASE in the environment.
+        #[arg(long)]
+        passphrase: Option<String>,
+    },
+    /// Decrypt a protected container's data back to plaintext (SPEC §9.2).
+    Unprotect {
+        /// The .poid file to unprotect in place.
+        file: PathBuf,
+        /// The passphrase. Prefer POID_PASSPHRASE in the environment.
+        #[arg(long)]
+        passphrase: Option<String>,
+    },
     /// Run the conformance suite: any implementation can use this to claim
     /// conformance (SPEC 14, spec/CONFORMANCE.md). Exit 0 = 100% passed.
     Conformance {
@@ -186,6 +203,8 @@ fn run(cli: &Cli) -> Result<Report, CmdError> {
         Command::Keygen { output, force } => commands::keygen(output, *force),
         Command::Sign { file, key } => commands::sign(file, key),
         Command::Verify { file } => commands::verify(file),
+        Command::Protect { file, passphrase } => commands::protect(file, passphrase.as_deref()),
+        Command::Unprotect { file, passphrase } => commands::unprotect(file, passphrase.as_deref()),
         Command::Conformance { suite } => commands::conformance(suite),
     }
 }

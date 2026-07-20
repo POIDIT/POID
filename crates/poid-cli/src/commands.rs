@@ -716,6 +716,95 @@ pub fn sign(file: &Path, key: &Path) -> Result<Report, CmdError> {
     })
 }
 
+/// Reads the passphrase from `--passphrase` or `POID_PASSPHRASE`. A blank
+/// passphrase is refused — silent no-encryption is worse than an error.
+fn passphrase(flag: Option<&str>) -> Result<String, CmdError> {
+    let value = flag
+        .map(str::to_owned)
+        .or_else(|| std::env::var("POID_PASSPHRASE").ok())
+        .unwrap_or_default();
+    if value.is_empty() {
+        return Err(err(
+            "no-passphrase",
+            "provide a passphrase with --passphrase or the POID_PASSPHRASE environment variable",
+        ));
+    }
+    Ok(value)
+}
+
+pub fn protect(file: &Path, pass: Option<&str>) -> Result<Report, CmdError> {
+    let passphrase = passphrase(pass)?;
+    let mut poid = open_path(file)?;
+    if poid.is_protected() {
+        return Err(err(
+            "already-protected",
+            "this container's data is already encrypted",
+        ));
+    }
+    let Some(plaintext) = poid.data().map(<[u8]>::to_vec) else {
+        return Err(err(
+            "no-data",
+            "this container has no embedded data to protect (SPEC §9.2 protects `data/`)",
+        ));
+    };
+
+    // Fresh salt and nonce per SPEC §9.2 (nonce is per-write).
+    let mut salt = [0u8; 16];
+    let mut nonce = [0u8; 12];
+    getrandom::fill(&mut salt).map_err(|e| err("rng", format!("cannot gather randomness: {e}")))?;
+    getrandom::fill(&mut nonce)
+        .map_err(|e| err("rng", format!("cannot gather randomness: {e}")))?;
+
+    let envelope = poid_vault::protect::seal(
+        &plaintext,
+        passphrase.as_bytes(),
+        salt,
+        nonce,
+        poid_vault::KdfParams::default(),
+    )
+    .map_err(|e| err("encrypt", e.to_string()))?;
+    let bytes =
+        poid_vault::protect::to_bytes(&envelope).map_err(|e| err("encrypt", e.to_string()))?;
+
+    poid.set_protected_blob(&bytes);
+    poid.save_path(file)?;
+    Ok(Report {
+        exit_failure: false,
+        human: format!(
+            "Encrypted the data in {} (AES-256-GCM + Argon2id).\n\
+             Note: sending a POID with no data is safer still — absent data cannot leak.",
+            file.display()
+        ),
+        json: json!({ "protected": file.display().to_string(), "alg": "aes-256-gcm" }),
+    })
+}
+
+pub fn unprotect(file: &Path, pass: Option<&str>) -> Result<Report, CmdError> {
+    let passphrase = passphrase(pass)?;
+    let mut poid = open_path(file)?;
+    let Some(blob) = poid.protected_blob().map(<[u8]>::to_vec) else {
+        return Err(err(
+            "not-protected",
+            "this container has no encrypted data (`data/store.enc`)",
+        ));
+    };
+    let envelope =
+        poid_vault::protect::from_bytes(&blob).map_err(|e| err("decrypt", e.to_string()))?;
+    let plaintext = poid_vault::protect::open(&envelope, passphrase.as_bytes())
+        .map_err(|e| err("decrypt", e.to_string()))?;
+
+    poid.set_plain_data(&plaintext);
+    poid.save_path(file)?;
+    Ok(Report {
+        exit_failure: false,
+        human: format!(
+            "Decrypted the data in {} back to plaintext.",
+            file.display()
+        ),
+        json: json!({ "unprotected": file.display().to_string() }),
+    })
+}
+
 pub fn verify(file: &Path) -> Result<Report, CmdError> {
     let poid = open_path(file)?;
     poid.verify()?;
