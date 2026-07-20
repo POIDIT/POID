@@ -87,6 +87,9 @@ importers:
       '@poid/ui':
         specifier: workspace:*
         version: link:../poid-ui
+      wa-sqlite:
+        specifier: 1.0.0
+        version: 1.0.0
     devDependencies:
       '@playwright/test':
         specifier: ^1.49.0
@@ -1115,6 +1118,9 @@ packages:
       jsdom:
         optional: true
 
+  wa-sqlite@1.0.0:
+    resolution: {integrity: sha512-Kyybo5/BaJp76z7gDWGk2J6Hthl4NIPsE+swgraEjy3IY6r5zIR02wAs1OJH4XtJp1y3puj3Onp5eMGS0z7nUA==}
+
   webidl-conversions@7.0.0:
     resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
     engines: {node: '>=12'}
@@ -1831,6 +1837,8 @@ snapshots:
       - terser
       - tsx
       - yaml
+
+  wa-sqlite@1.0.0: {}
 
   webidl-conversions@7.0.0: {}
 

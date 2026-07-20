@@ -44,4 +44,13 @@ export {
 export { BlobOrigin, type SyntheticOrigin } from "./origin.js";
 export { type MountOptions, mountReader, type ReaderHandle } from "./reader.js";
 export { seedFromStore } from "./seed.js";
+export {
+  type ScalarFunction,
+  type SqlCallOptions,
+  type SqlEngineOptions,
+  type SqlResult,
+  sqlBrokerHandler,
+  WaSqliteEngine,
+} from "./sql-engine.js";
+export type { SqliteWasmSource } from "./sql-wasm-api.js";
 export { Watchdog, type WatchdogClock, type WatchdogOptions } from "./watchdog.js";
