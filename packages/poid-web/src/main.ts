@@ -6,6 +6,7 @@
  * static assets during page load.
  */
 
+import { IndexedDbEngine } from "@poid/host";
 import { mountBanner } from "./banner.js";
 import { triggerDownload, updatedFileBytes } from "./download.js";
 import {
@@ -151,14 +152,15 @@ async function renderRunnable(outcome: RunnableOutcome, filename: string): Promi
     },
   };
 
-  if (outcome.facts.storageMode === "embedded") {
+  const engine = session.engine;
+  if (outcome.facts.storageMode === "embedded" && engine instanceof IndexedDbEngine) {
     const download = document.createElement("button");
     download.type = "button";
     download.className = "poid-toolbar__download";
     download.textContent = "Download updated file";
     download.addEventListener("click", () => {
-      void session.engine.flush().then(() => {
-        const bytes = updatedFileBytes(outcome.poid, session.engine.snapshot(session.scope));
+      void engine.flush().then(() => {
+        const bytes = updatedFileBytes(outcome.poid, engine.snapshot(session.scope));
         triggerDownload(document, bytes, filename);
       });
     });

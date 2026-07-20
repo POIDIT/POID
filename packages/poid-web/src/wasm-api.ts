@@ -34,9 +34,35 @@ export interface WebPoidHandle {
   free(): void;
 }
 
+/** One instance's CRDT memory (mirrors `VaultDoc` — the same Automerge
+ * engine as the desktop vault, SPEC §6.5). Values cross as JSON strings. */
+export interface VaultDocHandle {
+  save(): Uint8Array;
+  merge(other: Uint8Array): void;
+  kvGet(slot: string, key: string): string | undefined;
+  kvSet(slot: string, key: string, json: string): void;
+  kvDelete(slot: string, key: string): void;
+  kvList(slot: string, prefix?: string): string[];
+  kvClear(slot: string): void;
+  usage(slot: string): number;
+  totalUsage(): number;
+  slots(): string[];
+  currentSlot(): string;
+  setCurrentSlot(slot: string): void;
+  /** Releases the WASM-side memory; the handle is unusable afterwards. */
+  free(): void;
+}
+
+/** The constructor side of `VaultDoc`. */
+export interface VaultDocClass {
+  new (): VaultDocHandle;
+  load(bytes: Uint8Array): VaultDocHandle;
+}
+
 /** The surface of the WASM module the Web Reader uses. */
 export interface PoidWasm {
   openContainer(bytes: Uint8Array): WebPoidHandle;
+  VaultDoc: VaultDocClass;
 }
 
 interface WasmModule extends PoidWasm {

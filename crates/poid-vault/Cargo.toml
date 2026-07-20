@@ -11,10 +11,12 @@ workspace = true
 
 [features]
 # `fs` carries everything that touches a filesystem (the store, the instance
-# index). The WASM build turns it off and gets the pure document engine plus
-# the crypto envelope: bytes in, bytes out.
+# index, mode conversion) plus OS randomness for id generation. The WASM
+# build swaps it for `wasm`, which routes the engine's randomness (Automerge
+# actor ids) through the browser's crypto instead.
 default = ["fs"]
-fs = ["dep:sha2", "dep:poid-core"]
+fs = ["dep:sha2", "dep:poid-core", "uuid/v4"]
+wasm = ["automerge/wasm"]
 
 [dependencies]
 automerge = "0.10"
@@ -22,9 +24,9 @@ poid-core = { workspace = true, optional = true }
 thiserror.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-uuid = { version = "1", features = ["v4", "serde"] }
-aes-gcm = "0.10"
-argon2 = "0.5"
+uuid = { version = "1", features = ["serde"] }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10", optional = true }
 
 [dev-dependencies]

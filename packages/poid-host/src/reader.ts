@@ -44,6 +44,8 @@ export interface MountOptions {
   connections?: Map<string, Connection>;
   /** Storage backend; defaults to in-memory. */
   engine?: DataEngine;
+  /** Per-POID quota in bytes; defaults to 64 MB (SPEC `storage.quota_mb`). */
+  quotaBytes?: number;
   /** Watchdog tuning (short intervals in tests). */
   watchdog?: WatchdogOptions;
 }
@@ -99,7 +101,7 @@ function run(options: MountOptions, handle: ReaderHandle): ReaderHandle {
     capabilities: new Set(options.capabilities),
     slots: [],
     currentSlot: "",
-    quotaBytes: 64 * 1024 * 1024,
+    quotaBytes: options.quotaBytes ?? 64 * 1024 * 1024,
     connections: options.connections ?? new Map(),
   };
   broker.register(sessionId, session);
