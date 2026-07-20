@@ -11,13 +11,19 @@
 //! - [`store`] — the desktop file store: one atomically-written file per
 //!   instance, quota enforcement (`fs` feature).
 
+#[cfg(feature = "fs")]
+pub mod convert;
 pub mod doc;
 mod error;
+#[cfg(feature = "fs")]
+pub mod index;
 #[cfg(feature = "fs")]
 pub mod store;
 
 pub use doc::{InstanceDoc, DEFAULT_SLOT};
 pub use error::{Result, VaultError};
+#[cfg(feature = "fs")]
+pub use index::{hash_bytes, Disposition, IndexEntry, InstanceIndex};
 #[cfg(feature = "fs")]
 pub use store::{atomic_write, Vault, VaultInstance, DEFAULT_QUOTA_BYTES};
 
