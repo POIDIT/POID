@@ -21,7 +21,7 @@ static READER_SEQ: AtomicU64 = AtomicU64::new(0);
 /// window (with the explanation panel) — double-clicking a file must always
 /// produce a visible, honest result.
 pub fn open_reader(app: &AppHandle, path: &Path) {
-    let dto = document::load(path);
+    let (dto, bind) = document::load(path, &app.state::<crate::vault_state::VaultState>());
     let title = match &dto {
         DocumentDto::Rejected { file_name, .. } => file_name.clone(),
         DocumentDto::Loaded { file_name, .. } => file_name.clone(),
@@ -29,6 +29,10 @@ pub fn open_reader(app: &AppHandle, path: &Path) {
 
     let label = format!("reader-{}", READER_SEQ.fetch_add(1, Ordering::Relaxed) + 1);
     app.state::<Documents>().insert(label.clone(), dto);
+    if let Some(id) = bind {
+        app.state::<crate::vault_state::VaultState>()
+            .bind_window(&label, id);
+    }
 
     let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("reader.html".into()))
         .title(title)

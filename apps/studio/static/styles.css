@@ -173,6 +173,31 @@ button:hover {
   background: #fff;
 }
 
+/* Slot bar (SPEC §6.4) — a reader control, above the document */
+
+.reader-slots {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.reader-slots__label {
+  color: var(--muted);
+}
+
+.reader-slots select {
+  font: inherit;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+}
+
 /* Outcome panels (rejections and notices) */
 
 .poid-reader-host main {

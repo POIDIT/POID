@@ -14,6 +14,7 @@ mod cli;
 mod commands;
 mod document;
 mod state;
+mod vault_state;
 mod windows;
 
 use tauri::{Manager, WindowEvent};
@@ -38,15 +39,31 @@ pub fn run() {
         .manage(Documents::default())
         .invoke_handler(tauri::generate_handler![
             commands::reader_bootstrap,
-            commands::open_document
+            commands::open_document,
+            commands::resolve_copy_conflict,
+            commands::vault_hydrate,
+            commands::vault_kv_set,
+            commands::vault_kv_delete,
+            commands::vault_kv_clear,
+            commands::vault_switch_slot
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
                 window.state::<Documents>().remove(window.label());
+                window
+                    .state::<vault_state::VaultState>()
+                    .unbind_window(window.label());
             }
         })
         .setup(move |app| {
             association::ensure(app.handle());
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| format!("no app data dir: {e}"))?;
+            let vault = vault_state::VaultState::open(data_dir)
+                .map_err(|e| format!("vault store unavailable: {e}"))?;
+            app.manage(vault);
             match &launch {
                 Some(path) => windows::open_reader(app.handle(), path),
                 None => windows::focus_or_create_studio(app.handle()),

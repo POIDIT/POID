@@ -25,6 +25,7 @@ function loaded(overrides: Partial<Extract<DocumentDto, { kind: "loaded" }>> = {
     manifestJson: APP_MANIFEST,
     signature: "none",
     files: [{ path: "app/index.html", dataB64: b64("<!doctype html>") }],
+    copyConflict: null,
     ...overrides,
   };
 }

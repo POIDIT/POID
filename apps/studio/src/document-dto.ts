@@ -31,6 +31,9 @@ export type DocumentDto =
       manifestJson: string;
       signature: "none" | "valid";
       files: FileEntryDto[];
+      /** Present when this open is a genuine copy (SPEC §6.3): the window
+       * must ask Fork / Move / Share before anything runs. */
+      copyConflict: { existingPath: string } | null;
     };
 
 /** Decodes the IPC file list into the `Map` the reader mounts from. */
