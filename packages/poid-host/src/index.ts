@@ -24,6 +24,13 @@ export {
   type ServedResponse,
 } from "./container-server.js";
 export { buildCsp, type CspOptions, SANDBOX_TOKENS } from "./csp.js";
+export { compileQuery, compileSort, fieldPath } from "./docs-query.js";
+export {
+  DocsStore,
+  docsBrokerHandler,
+  docsRegexpFunction,
+  type FindOptions,
+} from "./docs-store.js";
 export { type DataEngine, InMemoryEngine, type Scope } from "./engine.js";
 export {
   EngineIntegrityError,
