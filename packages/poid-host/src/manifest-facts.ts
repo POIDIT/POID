@@ -11,6 +11,9 @@ import type { Grant, ManifestFacts } from "./capabilities.js";
 /** The manifest slice a reader consumes (SPEC §3.1). */
 export interface ReaderManifestFacts {
   type: "app" | "data" | "workspace";
+  /** `app.id` (reverse-DNS, stable across versions and copies; SPEC §3.2).
+   * Empty for a `type: data` container, which has no `app` block. */
+  appId: string;
   /** Display name; for `type: data` the referenced `app_id`. */
   name: string;
   version: string;
@@ -28,6 +31,9 @@ export interface ReaderManifestFacts {
   protectedData: boolean;
   /** `storage.quota_mb` — requested quota; null = the reader default (64). */
   quotaMb: number | null;
+  /** `storage.schema_version` — the SQL schema version the app expects
+   * (SPEC §12); 0 when unset. Drives migrations on update-in-place. */
+  schemaVersion: number;
   permissions: {
     network: string[];
     filesystem: "none" | "user-initiated";
@@ -82,6 +88,7 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
 
   const facts: ReaderManifestFacts = {
     type,
+    appId: asString(app.id, ""),
     name: asString(app.name, "Untitled"),
     version: asString(app.version, "0.0.0"),
     entry: typeof m.entry === "string" ? m.entry : undefined,
@@ -92,6 +99,10 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
     slots: asBool(storage.slots),
     protectedData: asBool(storage.protected),
     quotaMb: typeof storage.quota_mb === "number" ? storage.quota_mb : null,
+    schemaVersion:
+      typeof storage.schema_version === "number" && storage.schema_version > 0
+        ? Math.floor(storage.schema_version)
+        : 0,
     permissions: {
       network: asStringArray(perms.network),
       filesystem: perms.filesystem === "user-initiated" ? "user-initiated" : "none",
@@ -113,6 +124,26 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
     facts.name = facts.dataRef.appId;
   }
   return facts;
+}
+
+/** Profile engines every conformant reader provides natively, so a profile
+ * naming only these is runnable everywhere. `sql` is the SQLite tier of the
+ * Data Engine (M10); the browser's own JS/WASM back the base `web` profile. */
+export const BUILTIN_PROFILE_ENGINES: ReadonlySet<string> = new Set(["sql"]);
+
+/**
+ * The profile's engine parts this reader cannot satisfy — everything after
+ * `web` that is not a {@link BUILTIN_PROFILE_ENGINES built-in}. Empty means
+ * the profile is runnable; non-empty is an honest `engine-missing` notice
+ * (a reader that ships Pyodide would pass its own set of extra engines).
+ */
+export function unsupportedProfileEngines(
+  profile: string,
+  provided: ReadonlySet<string> = BUILTIN_PROFILE_ENGINES,
+): string[] {
+  const parts = profile.split("+");
+  if (parts[0] !== "web") return parts; // malformed: nothing is satisfied
+  return parts.slice(1).filter((part) => !provided.has(part));
 }
 
 /** Shapes the facts for the consent screen (SPEC §9.1). */

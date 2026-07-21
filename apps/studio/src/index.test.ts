@@ -81,14 +81,22 @@ describe("routeDocument", () => {
     expect(outcome.facts.instanceId).toBe("11111111-2222-4333-8444-555555555555");
   });
 
-  it("routes a non-web profile to an honest engine notice", () => {
+  it("routes a profile needing an unprovided engine to an honest notice", () => {
     const manifest = JSON.parse(APP_MANIFEST);
     manifest.runtime = { profile: "web+python", engines: { pyodide: ">=0.26" } };
     const outcome = routeDocument(loaded({ manifestJson: JSON.stringify(manifest) }));
     expect(outcome.kind).toBe("engine-missing");
     if (outcome.kind === "engine-missing") {
-      expect(outcome.missingEngines).toEqual(["pyodide"]);
+      // The unsatisfied profile part — the reader ships no Pyodide.
+      expect(outcome.missingEngines).toEqual(["python"]);
     }
+  });
+
+  it("runs a web+sql app: the SQL tier is a built-in reader engine (M10)", () => {
+    const manifest = JSON.parse(APP_MANIFEST);
+    manifest.runtime = { profile: "web+sql" };
+    const outcome = routeDocument(loaded({ manifestJson: JSON.stringify(manifest) }));
+    expect(outcome.kind).toBe("runnable");
   });
 
   it("routes data containers to a notice, never to execution", () => {

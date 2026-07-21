@@ -18,12 +18,24 @@ export {
 } from "./broker.js";
 export { capabilitiesFromGrant, type Grant, type ManifestFacts } from "./capabilities.js";
 export {
+  connectionScope,
+  type LoopbackConnectionOptions,
+  loopbackConnection,
+} from "./connection.js";
+export {
   ContainerServer,
   type ContainerServerInput,
   injectRuntime,
   type ServedResponse,
 } from "./container-server.js";
 export { buildCsp, type CspOptions, SANDBOX_TOKENS } from "./csp.js";
+export { compileQuery, compileSort, fieldPath } from "./docs-query.js";
+export {
+  DocsStore,
+  docsBrokerHandler,
+  docsRegexpFunction,
+  type FindOptions,
+} from "./docs-store.js";
 export { type DataEngine, InMemoryEngine, type Scope } from "./engine.js";
 export {
   EngineIntegrityError,
@@ -35,13 +47,40 @@ export { explain, FALLBACK_EXPLANATION, REGISTRY_EXPLANATIONS } from "./explanat
 export { type GuardResult, guardRequest, SCOPE_FIELDS } from "./guard.js";
 export { IndexedDbEngine } from "./idb-engine.js";
 export {
+  BUILTIN_PROFILE_ENGINES,
   consentManifestFrom,
   extractFacts,
   hostFacts,
   type ReaderManifestFacts,
   runGrant,
+  unsupportedProfileEngines,
 } from "./manifest-facts.js";
+export {
+  applyMigrations,
+  type Migration,
+  parseMigrations,
+  schemaVersionOf,
+} from "./migrations.js";
 export { BlobOrigin, type SyntheticOrigin } from "./origin.js";
 export { type MountOptions, mountReader, type ReaderHandle } from "./reader.js";
 export { seedFromStore } from "./seed.js";
+export { dumpSql } from "./sql-dump.js";
+export {
+  type ScalarFunction,
+  type ScopeResolver,
+  type SqlCallOptions,
+  type SqlEngineOptions,
+  type SqlResult,
+  sessionScope,
+  sqlBrokerHandler,
+  WaSqliteEngine,
+} from "./sql-engine.js";
+export {
+  IdbSqlPersistence,
+  makeSqlHandlers,
+  type SqlHandlers,
+  type SqlHandlersOptions,
+  type SqlPersistence,
+} from "./sql-persistence.js";
+export type { SqliteWasmSource } from "./sql-wasm-api.js";
 export { Watchdog, type WatchdogClock, type WatchdogOptions } from "./watchdog.js";

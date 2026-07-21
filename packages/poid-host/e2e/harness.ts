@@ -9,7 +9,13 @@
 
 import type { Capability } from "@poid/sdk";
 import type { ConsentManifest } from "@poid/ui";
-import { mountReader, type ReaderHandle } from "../src/index.js";
+import {
+  IdbSqlPersistence,
+  makeSqlHandlers,
+  mountReader,
+  type ReaderHandle,
+  type SqlHandlers,
+} from "../src/index.js";
 
 // Injected at bundle time: the @poid/sdk sandbox bootstrap, minified to an IIFE.
 declare const __SDK_SOURCE__: string;
@@ -56,6 +62,58 @@ const HOSTILE_APPS: Record<string, string> = {
       }
     })();
   </script></body></html>`,
+
+  // The Data Engine's document tier through the real sandbox → broker → SQL
+  // engine path (M10): insert, query, then re-read what a prior run left.
+  docs: `<!doctype html><html><body><script type="module">
+    (async () => {
+      try {
+        const cards = poid.db.docs.collection("cards");
+        const seenBefore = await cards.count({});
+        await cards.insert({ title: "Ship M10", column: "doing", order: 1 });
+        await cards.insert({ title: "Write docs", column: "todo", order: 2 });
+        const doing = await cards.find({ column: "doing" });
+        parent.postMessage({
+          probe: "docs",
+          ok: doing.length === 1 && doing[0].title === "Ship M10",
+          total: await cards.count({}),
+          seenBefore,
+        }, "*");
+      } catch (e) {
+        parent.postMessage({ probe: "docs", ok: false, detail: String(e) }, "*");
+      }
+    })();
+  </script></body></html>`,
+
+  // The 10k-row perf check (M10 DoD): build the table, then time an indexed
+  // point query — it must return in well under 50 ms.
+  perf: `<!doctype html><html><body><script type="module">
+    (async () => {
+      try {
+        await poid.db.sql.exec("CREATE TABLE items(id INTEGER PRIMARY KEY, tag TEXT, n INTEGER)");
+        await poid.db.sql.exec("CREATE INDEX idx_tag ON items(tag)");
+        await poid.db.sql.transaction(async (tx) => {
+          await tx.exec(
+            "WITH RECURSIVE s(v) AS (SELECT 1 UNION ALL SELECT v+1 FROM s WHERE v < 10000) " +
+            "INSERT INTO items(id, tag, n) SELECT v, 'tag-' || (v % 100), v FROM s"
+          );
+        });
+        const count = await poid.db.sql.exec("SELECT COUNT(*) AS n FROM items");
+        const t0 = performance.now();
+        const q = await poid.db.sql.exec("SELECT id, n FROM items WHERE tag = ? ORDER BY id", ["tag-42"]);
+        const ms = performance.now() - t0;
+        parent.postMessage({
+          probe: "perf",
+          ok: count.rows[0].n === 10000 && q.rows.length === 100,
+          rows: q.rows.length,
+          total: count.rows[0].n,
+          ms,
+        }, "*");
+      } catch (e) {
+        parent.postMessage({ probe: "perf", ok: false, detail: String(e) }, "*");
+      }
+    })();
+  </script></body></html>`,
 };
 
 interface Probe {
@@ -70,6 +128,7 @@ window.addEventListener("message", (ev) => {
 });
 
 let current: ReaderHandle | undefined;
+let sqlHandlers: SqlHandlers | undefined;
 
 function stage(): HTMLElement {
   let s = document.getElementById("stage");
@@ -103,6 +162,11 @@ function manifest(): ConsentManifest & { instanceId: string; storageMode: "embed
 interface MountArgs {
   kind: string;
   watchdog?: { intervalMs: number; timeoutMs: number };
+  /** IndexedDB name for the SQL tier; a stable name across mounts models a
+   * reader restart on the same instance's data. */
+  sqlDb?: string;
+  /** The instance id the session runs under (default `instance-hostile`). */
+  instanceId?: string;
 }
 
 const PoidHarness = {
@@ -114,18 +178,42 @@ const PoidHarness = {
     const html = HOSTILE_APPS[args.kind];
     if (!html) throw new Error(`unknown hostile app ${args.kind}`);
     const files = new Map<string, Uint8Array>([["app/index.html", new TextEncoder().encode(html)]]);
-    const capabilities: Capability[] = ["app", "db.kv", "db.docs", "db.slots", "ui", "export"];
-    void mountReader({
-      container: stage(),
-      files,
-      entry: "app/index.html",
-      manifest: manifest(),
-      capabilities,
-      sdkSource: __SDK_SOURCE__,
-      watchdog: args.watchdog,
-    }).then((handle) => {
+    const capabilities: Capability[] = [
+      "app",
+      "db.kv",
+      "db.sql",
+      "db.docs",
+      "db.slots",
+      "ui",
+      "export",
+    ];
+    const instanceId = args.instanceId ?? "instance-hostile";
+
+    sqlHandlers = undefined;
+    void (async (): Promise<void> => {
+      if (args.sqlDb) {
+        sqlHandlers = makeSqlHandlers({
+          wasm: { wasmUrl: "/wa-sqlite.wasm" },
+          persistence: await IdbSqlPersistence.open(args.sqlDb),
+        });
+      }
+      const handle = await mountReader({
+        container: stage(),
+        files,
+        entry: "app/index.html",
+        manifest: { ...manifest(), instanceId },
+        capabilities,
+        sdkSource: __SDK_SOURCE__,
+        watchdog: args.watchdog,
+        handlers: sqlHandlers ? { sql: sqlHandlers.sql, docs: sqlHandlers.docs } : undefined,
+      });
       current = handle;
-    });
+    })();
+  },
+  /** Awaits the SQL tier's write-behind persists, so the next mount (a
+   * "restart") is guaranteed to see committed data. */
+  async flushSql(): Promise<void> {
+    await sqlHandlers?.flush();
   },
   run(): void {
     document.querySelector<HTMLButtonElement>(".poid-consent__run")?.click();

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { consentManifestFrom, extractFacts, hostFacts, runGrant } from "./manifest-facts.js";
+import {
+  consentManifestFrom,
+  extractFacts,
+  hostFacts,
+  runGrant,
+  unsupportedProfileEngines,
+} from "./manifest-facts.js";
 
 const APP_MANIFEST = JSON.stringify({
   poid: "1.0",
@@ -35,6 +41,25 @@ describe("extractFacts", () => {
     expect(facts.permissions.filesystem).toBe("user-initiated");
     expect(facts.permissions.clipboard).toBe(true);
     expect(facts.permissions.print).toBe(false);
+    expect(facts.appId).toBe("com.example.kanban");
+    expect(facts.schemaVersion).toBe(0);
+  });
+
+  it("reads storage.schema_version for the update flow", () => {
+    const facts = extractFacts(
+      JSON.stringify({
+        poid: "1.0",
+        type: "app",
+        app: { id: "com.example.k", name: "K", version: "2.0.0" },
+        instance: { id: null },
+        runtime: { profile: "web+sql" },
+        entry: "app/index.html",
+        storage: { mode: "embedded", schema_version: 3 },
+        permissions: {},
+      }),
+    );
+    expect(facts.schemaVersion).toBe(3);
+    expect(facts.appId).toBe("com.example.k");
   });
 
   it("applies spec defaults when optional blocks are absent", () => {
@@ -101,5 +126,21 @@ describe("consent and grant shaping", () => {
     expect(facts.storageMode).toBe("embedded");
     expect(facts.storageSlots).toBe(true);
     expect(facts.profile).toBe("web+python");
+  });
+});
+
+describe("unsupportedProfileEngines", () => {
+  it("treats web and the built-in sql tier as runnable", () => {
+    expect(unsupportedProfileEngines("web")).toEqual([]);
+    expect(unsupportedProfileEngines("web+sql")).toEqual([]);
+  });
+
+  it("flags engines the reader does not provide", () => {
+    expect(unsupportedProfileEngines("web+python")).toEqual(["python"]);
+    expect(unsupportedProfileEngines("web+sql+python")).toEqual(["python"]);
+  });
+
+  it("treats a malformed profile as entirely unsatisfied", () => {
+    expect(unsupportedProfileEngines("python")).toEqual(["python"]);
   });
 });

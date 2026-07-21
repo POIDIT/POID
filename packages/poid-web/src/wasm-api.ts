@@ -27,8 +27,12 @@ export interface WebPoidHandle {
   filePaths(): string[];
   file(path: string): Uint8Array | undefined;
   data(): Uint8Array | undefined;
+  /** Embedded SQL state (`data/database.sql`), if present (M10). */
+  sqlData(): Uint8Array | undefined;
   setInstanceId(id: string): void;
   setData(data: Uint8Array): void;
+  /** Replaces the embedded SQL state before *Download updated file* (M10). */
+  setSqlData(dump: Uint8Array): void;
   toBytes(): Uint8Array;
   /** Releases the WASM-side memory; the handle is unusable afterwards. */
   free(): void;

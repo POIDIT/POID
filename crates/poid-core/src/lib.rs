@@ -36,7 +36,7 @@ pub use manifest::{
     IntegrityAlgo, Manifest, Permissions, RequireKind, Runtime, Storage, StorageMode,
     StorageRequires, ToolchainRecord, WindowHints,
 };
-pub use poid::Poid;
+pub use poid::{Poid, UpdateReport};
 pub use read::{conformance_check, open, open_with_limits};
 #[cfg(feature = "fs")]
 pub use read::{open_path, open_path_with_limits};

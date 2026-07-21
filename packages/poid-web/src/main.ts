@@ -159,8 +159,11 @@ async function renderRunnable(outcome: RunnableOutcome, filename: string): Promi
     download.className = "poid-toolbar__download";
     download.textContent = "Download updated file";
     download.addEventListener("click", () => {
-      void engine.flush().then(() => {
-        const bytes = updatedFileBytes(outcome.poid, engine.snapshot(session.scope));
+      // Flush both tiers, then pack kv (data/store.json) and, if the app used
+      // SQL, its canonical dump (data/database.sql) into the downloaded copy.
+      void Promise.all([engine.flush(), session.sql.flush()]).then(async () => {
+        const sqlDump = await session.sql.dump(session.scope);
+        const bytes = updatedFileBytes(outcome.poid, engine.snapshot(session.scope), sqlDump);
         triggerDownload(document, bytes, filename);
       });
     });

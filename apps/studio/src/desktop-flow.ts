@@ -7,7 +7,12 @@
  * limitations).
  */
 
-import { explain, extractFacts, type ReaderManifestFacts } from "@poid/host";
+import {
+  explain,
+  extractFacts,
+  type ReaderManifestFacts,
+  unsupportedProfileEngines,
+} from "@poid/host";
 import { type DocumentDto, decodeFiles } from "./document-dto.js";
 
 /** The container was refused by the validation core. */
@@ -70,15 +75,15 @@ export function routeDocument(dto: DocumentDto): DesktopOutcome {
   }
 
   // Engines are provided by the reader, never the file (SPEC §5.4). The
-  // desktop reader does not ship engine loading yet (the Pyodide wiring is a
-  // follow-up), so any `web+<engine>` profile gets an honest notice instead
-  // of a broken run — exactly like the Web Reader.
-  if (facts.profile !== "web") {
-    const missing = Object.keys(facts.engines);
+  // desktop reader provides the SQL tier natively (M10) but does not ship
+  // Pyodide yet (a follow-up), so a `web+python` profile still gets an honest
+  // notice instead of a broken run — exactly like the Web Reader.
+  const unsupported = unsupportedProfileEngines(facts.profile);
+  if (unsupported.length > 0) {
     return {
       kind: "engine-missing",
       facts,
-      missingEngines: missing.length > 0 ? missing : facts.profile.split("+").slice(1),
+      missingEngines: unsupported,
       fileName: dto.fileName,
     };
   }

@@ -19,6 +19,8 @@ mod error;
 pub mod index;
 pub mod protect;
 #[cfg(feature = "fs")]
+pub mod sql;
+#[cfg(feature = "fs")]
 pub mod store;
 
 pub use doc::{InstanceDoc, DEFAULT_SLOT};

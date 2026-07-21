@@ -39,14 +39,17 @@ pub struct BuiltApp {
 /// (M06 decision 1: readers execute inline output until the synthetic
 /// origin, issue #5). This is the one build path `pack` and `convert` share.
 fn build_app(files: Vec<ProjectFile>, title: &str) -> Result<BuiltApp, CmdError> {
-    // `data/` (embedded state, SPEC §6) and `deps/` (bundled runtime
-    // dependencies — Python wheels, SPEC §2.2) travel at the container root,
-    // not under `app/`.
+    // `data/` (embedded state, SPEC §6), `deps/` (bundled runtime
+    // dependencies — Python wheels, SPEC §2.2) and `migrations/` (ordered
+    // schema scripts, SPEC §12) travel at the container root, not under
+    // `app/`, and are not fed to the bundler.
     let (data_files, rest): (Vec<_>, Vec<_>) = files.into_iter().partition(|f| {
         f.rel == "data"
             || f.rel.starts_with("data/")
             || f.rel == "deps"
             || f.rel.starts_with("deps/")
+            || f.rel == "migrations"
+            || f.rel.starts_with("migrations/")
     });
 
     let sources: Vec<poid_convert::SourceFile> = rest
@@ -713,6 +716,50 @@ pub fn sign(file: &Path, key: &Path) -> Result<Report, CmdError> {
         exit_failure: false,
         human: format!("Signed {}\nPublic key: {public_key}", file.display()),
         json: json!({ "signed": file.display().to_string(), "public_key": public_key }),
+    })
+}
+
+/// `poid update <file> --from <newer>`: the "Update program, keep data" flow
+/// (SPEC §12). Swaps the program in `file` for the one in `newer` (same
+/// `app.id`), preserving the user's data, identity, and storage choices.
+pub fn update(file: &Path, from: &Path) -> Result<Report, CmdError> {
+    let mut target = open_path(file)?;
+    let newer = open_path(from)?;
+    let report = target.update_program(&newer)?;
+    target.save_path(file)?;
+
+    let app = target.manifest().app.as_ref();
+    let version = app.map(|a| a.version.as_str()).unwrap_or("?");
+    let mut notes: Vec<String> = Vec::new();
+    if report.schema_advanced() {
+        notes.push(format!(
+            "schema {} → {}: migrations will run on next open",
+            report.old_schema_version, report.new_schema_version
+        ));
+    }
+    if report.permissions_widened {
+        notes.push("permissions widened: the reader will re-request consent".to_owned());
+    }
+    let human = if notes.is_empty() {
+        format!("Updated {} to v{version}. Data preserved.", file.display())
+    } else {
+        format!(
+            "Updated {} to v{version}. Data preserved.\n  {}",
+            file.display(),
+            notes.join("\n  ")
+        )
+    };
+    Ok(Report {
+        exit_failure: false,
+        human,
+        json: json!({
+            "updated": file.display().to_string(),
+            "version": version,
+            "schema_advanced": report.schema_advanced(),
+            "old_schema_version": report.old_schema_version,
+            "new_schema_version": report.new_schema_version,
+            "permissions_widened": report.permissions_widened,
+        }),
     })
 }
 

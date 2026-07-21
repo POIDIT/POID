@@ -6,11 +6,17 @@
 
 import type { WebPoidHandle } from "./wasm-api.js";
 
-/** Packs the container with `state` as its embedded `data/store.json`.
- * The JSON is pretty-printed: the store must stay human-readable (SPEC §6.2). */
-export function updatedFileBytes(poid: WebPoidHandle, state: Record<string, unknown>): Uint8Array {
+/** Packs the container with `state` as its embedded `data/store.json` and, if
+ * the app used the SQL tier, `sqlDump` as `data/database.sql` (M10). Both
+ * embedded forms stay human-readable (SPEC §6.2). */
+export function updatedFileBytes(
+  poid: WebPoidHandle,
+  state: Record<string, unknown>,
+  sqlDump?: string | null,
+): Uint8Array {
   const body = `${JSON.stringify(state, null, 2)}\n`;
   poid.setData(new TextEncoder().encode(body));
+  if (sqlDump) poid.setSqlData(new TextEncoder().encode(sqlDump));
   return poid.toBytes();
 }
 

@@ -104,6 +104,16 @@ enum Command {
         #[arg(long)]
         key: PathBuf,
     },
+    /// Update a POID's program in place, keeping its data (SPEC §12).
+    /// Swaps app/, deps/, migrations/ and the program manifest fields for a
+    /// newer build with the same app.id; preserves data/, slots/ and identity.
+    Update {
+        /// The .poid file to update in place.
+        file: PathBuf,
+        /// The newer .poid whose program replaces `file`'s.
+        #[arg(long)]
+        from: PathBuf,
+    },
     /// Verify integrity and signature.
     Verify {
         /// The .poid file to verify.
@@ -202,6 +212,7 @@ fn run(cli: &Cli) -> Result<Report, CmdError> {
         Command::Data { file, export } => commands::data(file, export),
         Command::Keygen { output, force } => commands::keygen(output, *force),
         Command::Sign { file, key } => commands::sign(file, key),
+        Command::Update { file, from } => commands::update(file, from),
         Command::Verify { file } => commands::verify(file),
         Command::Protect { file, passphrase } => commands::protect(file, passphrase.as_deref()),
         Command::Unprotect { file, passphrase } => commands::unprotect(file, passphrase.as_deref()),

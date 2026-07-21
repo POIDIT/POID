@@ -65,6 +65,9 @@ importers:
       '@tauri-apps/plugin-dialog':
         specifier: ^2.2.0
         version: 2.7.2
+      wa-sqlite:
+        specifier: 1.0.0
+        version: 1.0.0
     devDependencies:
       '@tauri-apps/cli':
         specifier: ^2.5.0
@@ -87,6 +90,9 @@ importers:
       '@poid/ui':
         specifier: workspace:*
         version: link:../poid-ui
+      wa-sqlite:
+        specifier: 1.0.0
+        version: 1.0.0
     devDependencies:
       '@playwright/test':
         specifier: ^1.49.0
@@ -97,6 +103,9 @@ importers:
       fake-indexeddb:
         specifier: ^6.0.0
         version: 6.2.5
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.9.0
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -182,6 +191,9 @@ importers:
       '@poid/ui':
         specifier: workspace:*
         version: link:../poid-ui
+      wa-sqlite:
+        specifier: 1.0.0
+        version: 1.0.0
     devDependencies:
       '@playwright/test':
         specifier: ^1.49.0
@@ -898,6 +910,10 @@ packages:
     resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
     engines: {node: '>=18'}
 
+  fast-check@4.9.0:
+    resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
+    engines: {node: '>=12.17.0'}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -982,6 +998,9 @@ packages:
   postcss@8.5.19:
     resolution: {integrity: sha512-Mz8SaolMd8nB+G13WkORcxQKHZ/NE4xXevtkJHVuG+guo9/wYKlIMTKAqGdEmYOXR2ijPjTYNHssizdaVSUNdQ==}
     engines: {node: ^10 || ^12 || >=14}
+
+  pure-rand@8.4.2:
+    resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
 
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
@@ -1114,6 +1133,9 @@ packages:
         optional: true
       jsdom:
         optional: true
+
+  wa-sqlite@1.0.0:
+    resolution: {integrity: sha512-Kyybo5/BaJp76z7gDWGk2J6Hthl4NIPsE+swgraEjy3IY6r5zIR02wAs1OJH4XtJp1y3puj3Onp5eMGS0z7nUA==}
 
   webidl-conversions@7.0.0:
     resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
@@ -1623,6 +1645,10 @@ snapshots:
 
   fake-indexeddb@6.2.5: {}
 
+  fast-check@4.9.0:
+    dependencies:
+      pure-rand: 8.4.2
+
   fast-deep-equal@3.1.3: {}
 
   fast-uri@3.1.3: {}
@@ -1684,6 +1710,8 @@ snapshots:
       nanoid: 3.3.16
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  pure-rand@8.4.2: {}
 
   require-from-string@2.0.2: {}
 
@@ -1831,6 +1859,8 @@ snapshots:
       - terser
       - tsx
       - yaml
+
+  wa-sqlite@1.0.0: {}
 
   webidl-conversions@7.0.0: {}
 

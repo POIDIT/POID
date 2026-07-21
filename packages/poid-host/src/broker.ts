@@ -64,6 +64,7 @@ export interface BrokerHandlers {
     params: Record<string, unknown>,
   ): Promise<unknown>;
   sql?(session: ReaderSession, method: Method, params: Record<string, unknown>): Promise<unknown>;
+  docs?(session: ReaderSession, method: Method, params: Record<string, unknown>): Promise<unknown>;
 }
 
 interface NetResult {
@@ -253,8 +254,7 @@ export class Broker {
       case "db.docs.update":
       case "db.docs.delete":
       case "db.docs.count":
-        // The document store lands with the Data Engine milestone.
-        throw new BrokerError("NOT_AVAILABLE", "document store not available in this reader build");
+        return this.delegate(this.handlers.docs, session, method, params);
     }
   }
 

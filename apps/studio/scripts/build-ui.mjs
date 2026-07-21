@@ -12,6 +12,7 @@
  */
 
 import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
@@ -57,5 +58,10 @@ await esbuild.build({
 
 // 3. The window pages and the stylesheet.
 cpSync(join(pkg, "static"), out, { recursive: true });
+
+// 4. The SQL engine's WASM binary (M10.3): the reader fetches it lazily on
+// the first poid.db.sql / poid.db.docs call.
+const require = createRequire(import.meta.url);
+cpSync(require.resolve("wa-sqlite/dist/wa-sqlite.wasm"), join(out, "wa-sqlite.wasm"));
 
 console.log(`studio UI built into ${out}`);

@@ -18,6 +18,7 @@ const SHELL = [
   "./icons/icon.svg",
   "./wasm/poid_wasm.js",
   "./wasm/poid_wasm_bg.wasm",
+  "./wasm/wa-sqlite.wasm",
 ];
 
 self.addEventListener("install", (event) => {
