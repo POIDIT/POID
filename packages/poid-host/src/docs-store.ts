@@ -20,7 +20,13 @@ import type { Method } from "@poid/sdk";
 import { BrokerError, type ReaderSession } from "./broker.js";
 import { compileQuery, compileSort, fieldPath } from "./docs-query.js";
 import type { Scope } from "./engine.js";
-import type { ScalarFunction, SqlCallOptions, WaSqliteEngine } from "./sql-engine.js";
+import {
+  type ScalarFunction,
+  type ScopeResolver,
+  type SqlCallOptions,
+  sessionScope,
+  type WaSqliteEngine,
+} from "./sql-engine.js";
 
 /** Collection names: short, filesystem-ish, nothing an identifier quoter
  * could stumble over. The table name is `docs::<name>`, double-quoted. */
@@ -279,16 +285,18 @@ const DOCS_CAPABILITY = "db.docs";
 
 /**
  * Adapts a {@link DocsStore} to the broker's injectable `docs` handler.
- * Scope comes from the session (the window), never the message.
+ * Scope comes from the session (the window) via `scopeFor`, never the
+ * message; the reader picks the resolver from `storage.mode`.
  */
 export function docsBrokerHandler(
   store: DocsStore,
+  scopeFor: ScopeResolver = sessionScope,
 ): (session: ReaderSession, method: Method, params: Record<string, unknown>) => Promise<unknown> {
   return async (session, method, params) => {
     if (!session.capabilities.has(DOCS_CAPABILITY)) {
       throw new BrokerError("PERMISSION_DENIED", `capability \`${DOCS_CAPABILITY}\` not granted`);
     }
-    const scope: Scope = { instanceId: session.instanceId, slot: session.currentSlot };
+    const scope: Scope = scopeFor(session);
     const call: SqlCallOptions = { quotaBytes: session.quotaBytes };
     const name = params.name as string;
     switch (method) {

@@ -11,6 +11,9 @@ import type { Grant, ManifestFacts } from "./capabilities.js";
 /** The manifest slice a reader consumes (SPEC §3.1). */
 export interface ReaderManifestFacts {
   type: "app" | "data" | "workspace";
+  /** `app.id` (reverse-DNS, stable across versions and copies; SPEC §3.2).
+   * Empty for a `type: data` container, which has no `app` block. */
+  appId: string;
   /** Display name; for `type: data` the referenced `app_id`. */
   name: string;
   version: string;
@@ -82,6 +85,7 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
 
   const facts: ReaderManifestFacts = {
     type,
+    appId: asString(app.id, ""),
     name: asString(app.name, "Untitled"),
     version: asString(app.version, "0.0.0"),
     entry: typeof m.entry === "string" ? m.entry : undefined,

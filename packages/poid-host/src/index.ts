@@ -18,6 +18,11 @@ export {
 } from "./broker.js";
 export { capabilitiesFromGrant, type Grant, type ManifestFacts } from "./capabilities.js";
 export {
+  connectionScope,
+  type LoopbackConnectionOptions,
+  loopbackConnection,
+} from "./connection.js";
+export {
   ContainerServer,
   type ContainerServerInput,
   injectRuntime,
@@ -54,9 +59,11 @@ export { seedFromStore } from "./seed.js";
 export { dumpSql } from "./sql-dump.js";
 export {
   type ScalarFunction,
+  type ScopeResolver,
   type SqlCallOptions,
   type SqlEngineOptions,
   type SqlResult,
+  sessionScope,
   sqlBrokerHandler,
   WaSqliteEngine,
 } from "./sql-engine.js";

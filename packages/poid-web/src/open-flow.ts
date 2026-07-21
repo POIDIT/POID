@@ -14,6 +14,7 @@ import {
   hostFacts,
   IdbSqlPersistence,
   IndexedDbEngine,
+  loopbackConnection,
   makeSqlHandlers,
   mountReader,
   type ReaderHandle,
@@ -183,13 +184,28 @@ export async function runContainer(
   // poid.db.sql / poid.db.docs call — after consent — and an embedded
   // container's `data/database.sql` seeds a fresh scope then. A declined app
   // never reaches that first call, so it leaves no SQL trace.
-  const sqlSeed =
-    facts.storageMode === "embedded" && !facts.protectedData ? poid.sqlData() : undefined;
-  const sql = makeSqlHandlers({
-    wasm: { wasmUrl: new URL("wasm/wa-sqlite.wasm", document.baseURI).href },
-    persistence: await IdbSqlPersistence.open(SQL_DB),
-    seedSql: sqlSeed ?? undefined,
-  });
+  //
+  // In connection mode the same handlers are served by a loopback connection
+  // (M10.5): data is keyed by the app id, shared across every POID configured
+  // against it, not carried in the file. The application calls the identical
+  // API and cannot tell the difference.
+  const sqlWasm = { wasmUrl: new URL("wasm/wa-sqlite.wasm", document.baseURI).href };
+  const sqlPersistence = await IdbSqlPersistence.open(SQL_DB);
+  const sql =
+    facts.storageMode === "connection"
+      ? loopbackConnection({
+          connectionId: facts.appId,
+          wasm: sqlWasm,
+          persistence: sqlPersistence,
+        })
+      : makeSqlHandlers({
+          wasm: sqlWasm,
+          persistence: sqlPersistence,
+          seedSql:
+            facts.storageMode === "embedded" && !facts.protectedData
+              ? (poid.sqlData() ?? undefined)
+              : undefined,
+        });
 
   // Serve the app + subresources as blob URLs (SPEC §5.2.1) so a multi-file
   // app's `<script src>` runs — works offline and from file://, unlike a

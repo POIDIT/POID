@@ -17,7 +17,9 @@ import type { Scope } from "./engine.js";
 import { dumpSql } from "./sql-dump.js";
 import {
   type ScalarFunction,
+  type ScopeResolver,
   type SqlEngineOptions,
+  sessionScope,
   sqlBrokerHandler,
   WaSqliteEngine,
 } from "./sql-engine.js";
@@ -41,6 +43,13 @@ export interface SqlHandlersOptions {
    * consent: a declined app never executes its seed.
    */
   seedSql?: Uint8Array;
+  /**
+   * How to derive the storage scope from a session. Defaults to the window's
+   * own instance + slot; a connection (M10.5) overrides this to key storage
+   * by the connection, so every POID configured against it shares a database.
+   * Chosen by the reader, never by the app.
+   */
+  scopeFor?: ScopeResolver;
   /** Extra engine tuning; `regexp` for the document store is always added. */
   engineOptions?: Omit<SqlEngineOptions, "persist">;
 }
@@ -70,6 +79,7 @@ function partition(scope: Scope): string {
 
 /** Builds the lazy `sql` + `docs` broker handlers for one reader window. */
 export function makeSqlHandlers(options: SqlHandlersOptions): SqlHandlers {
+  const scopeFor = options.scopeFor ?? sessionScope;
   let ready: Promise<{
     engine: WaSqliteEngine;
     sql: SqlHandlers["sql"];
@@ -93,8 +103,8 @@ export function makeSqlHandlers(options: SqlHandlersOptions): SqlHandlers {
         });
         return {
           engine,
-          sql: sqlBrokerHandler(engine),
-          docs: docsBrokerHandler(new DocsStore(engine)),
+          sql: sqlBrokerHandler(engine, scopeFor),
+          docs: docsBrokerHandler(new DocsStore(engine), scopeFor),
         };
       })();
     }
@@ -125,12 +135,12 @@ export function makeSqlHandlers(options: SqlHandlersOptions): SqlHandlers {
   return {
     sql: async (session, method, params) => {
       const wired = await wake();
-      await seedScope(wired.engine, { instanceId: session.instanceId, slot: session.currentSlot });
+      await seedScope(wired.engine, scopeFor(session));
       return wired.sql(session, method, params);
     },
     docs: async (session, method, params) => {
       const wired = await wake();
-      await seedScope(wired.engine, { instanceId: session.instanceId, slot: session.currentSlot });
+      await seedScope(wired.engine, scopeFor(session));
       return wired.docs(session, method, params);
     },
     flush: async () => {

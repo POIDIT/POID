@@ -670,19 +670,35 @@ const SQL_METHODS = new Set<Method>([
 const SQL_CAPABILITY: Capability = "db.sql";
 
 /**
+ * How the broker derives a call's storage scope from the session. Chosen by
+ * the **reader** at mount time based on `storage.mode` — never by the app.
+ * The default keys storage by the window's instance (embedded / vault); a
+ * connection (M10.5) keys it by the connection instead, so every POID
+ * configured against that connection shares one database.
+ */
+export type ScopeResolver = (session: ReaderSession) => Scope;
+
+/** The default resolver: the opened POID's own instance + active slot. */
+export const sessionScope: ScopeResolver = (session) => ({
+  instanceId: session.instanceId,
+  slot: session.currentSlot,
+});
+
+/**
  * Adapts a {@link WaSqliteEngine} to the broker's injectable `sql` handler.
- * Scope is derived from the session (the window) — never from the message
- * (SECURITY rule 3); `txId` is not a scope: it is validated against the
- * scope's own open transaction and cannot address anything else.
+ * Scope is derived from the session (the window) via `scopeFor` — never from
+ * the message (SECURITY rule 3); `txId` is not a scope: it is validated
+ * against the scope's own open transaction and cannot address anything else.
  */
 export function sqlBrokerHandler(
   engine: WaSqliteEngine,
+  scopeFor: ScopeResolver = sessionScope,
 ): (session: ReaderSession, method: Method, params: Record<string, unknown>) => Promise<unknown> {
   return async (session, method, params) => {
     if (!SQL_METHODS.has(method) || !session.capabilities.has(SQL_CAPABILITY)) {
       throw new BrokerError("PERMISSION_DENIED", `capability \`${SQL_CAPABILITY}\` not granted`);
     }
-    const scope: Scope = { instanceId: session.instanceId, slot: session.currentSlot };
+    const scope: Scope = scopeFor(session);
     const call: SqlCallOptions = { quotaBytes: session.quotaBytes };
     switch (method) {
       case "db.sql.exec": {
