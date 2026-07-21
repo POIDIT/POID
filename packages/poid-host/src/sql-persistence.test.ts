@@ -107,6 +107,17 @@ describe("makeSqlHandlers", () => {
     const empty = await idle.snapshot({ instanceId: "never-used", slot: "" });
     expect(empty).toBeNull();
   });
+
+  it("dump() returns null without waking the engine when there is no SQL data", async () => {
+    // The kv-only download path calls dump(); it must not load the ~550 KB
+    // engine (which, in the browser, would fetch wa-sqlite.wasm) for nothing.
+    const persistence = new MemoryPersistence();
+    const handlers = makeSqlHandlers({ wasm: { wasmBinary }, persistence });
+    const dump = await handlers.dump({ instanceId: "kv-only", slot: "" });
+    expect(dump).toBeNull();
+    // Only the cheap persistence probe ran — the engine never woke.
+    expect(persistence.loads).toBe(1);
+  });
 });
 
 describe("IdbSqlPersistence", () => {

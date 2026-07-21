@@ -186,9 +186,14 @@ export function makeSqlHandlers(options: SqlHandlersOptions): SqlHandlers {
       return persisted && persisted.byteLength > 0 ? persisted : null;
     },
     dump: async (scope) => {
-      // The dump reads live tables, so the engine must be awake and seeded —
-      // wake it even when nothing has touched SQL this session, so exporting
-      // a never-opened SQL scope still reflects its persisted state.
+      // Don't load the ~550 KB engine just to dump nothing: if it never woke
+      // this session and the scope has no persisted bytes either, there is no
+      // SQL data at all. (This keeps the download path of a kv-only app from
+      // fetching wa-sqlite.wasm.)
+      if (!ready) {
+        const persisted = await options.persistence?.load(scope);
+        if (!persisted || persisted.byteLength === 0) return null;
+      }
       const { engine } = await wake();
       await seedScope(engine, scope);
       return dumpSql(engine, scope);

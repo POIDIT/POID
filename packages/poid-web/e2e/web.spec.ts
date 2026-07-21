@@ -81,7 +81,9 @@ test.describe("valid fixtures", () => {
 
       if (fixture.name === "python-pyodide") {
         await expect(page.locator("#outcome")).toContainText("needs an engine");
-        await expect(page.locator("#outcome")).toContainText("pyodide");
+        // The unsatisfied profile part (M10): the SQL tier is built in, Python
+        // is not, so the notice names `python`.
+        await expect(page.locator("#outcome")).toContainText("python");
       } else if (fixture.name === "workspace") {
         await expect(page.locator("#outcome")).toContainText("workspace");
         await expect(page.locator("#outcome")).toContainText("POID Studio");
@@ -180,7 +182,11 @@ test.describe("hostile fixtures", () => {
 test.describe("definition of done", () => {
   test("zero network requests after the initial page load", async ({ page }) => {
     await page.goto("/");
-    // Let the shell settle completely: scripts, the WASM core, the worker.
+    // Let the shell settle completely: scripts, the WASM core, and the service
+    // worker's precache — which includes the lazily-used SQL engine
+    // (wa-sqlite.wasm), fetched during install so it is available offline.
+    // Waiting for `ready` guarantees that precache finished before we count.
+    await page.evaluate(() => navigator.serviceWorker.ready);
     await page.waitForLoadState("networkidle");
 
     const requests: string[] = [];
