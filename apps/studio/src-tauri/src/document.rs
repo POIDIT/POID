@@ -248,6 +248,7 @@ mod tests {
             slots: None,
             protected: None,
             quota_mb: None,
+            schema_version: None,
             requires: None,
             extra: poid_core::ExtraFields::new(),
         });
