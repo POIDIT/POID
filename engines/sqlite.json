@@ -1,0 +1,12 @@
+{
+  "$comment": "Engine manifest (SPEC 5.4: readers provide engines, files never do; readers MUST verify engine integrity before use). This is the pinned identity of the ONE SQLite build every POID reader in this repo runs for the SQL tier of the Data Engine (poid.db.sql / poid.db.docs, M10): the wa-sqlite WASM module, by exact npm version and the sha256 of the binary the reader instantiates. Unlike Pyodide, this engine ships as an npm dependency of @poid/host rather than a downloaded archive, so `source` names the package; the sha256 pins the exact bytes the readers copy into their assets (packages/poid-web/site, apps/studio/dist-ui) and lazily fetch on the first poid.db.sql/docs call.",
+  "name": "sqlite",
+  "version": "1.0.0",
+  "compatible": ">=1.0.0 <2",
+  "engine": "wa-sqlite",
+  "sqliteVersion": "3.44.0",
+  "source": "npm:wa-sqlite@1.0.0",
+  "files": {
+    "wa-sqlite.wasm": "5384bc7d80d7981c2516f3ad6b02d886629985d178e5037e765d655f440bbf9f"
+  }
+}

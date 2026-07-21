@@ -126,6 +126,26 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
   return facts;
 }
 
+/** Profile engines every conformant reader provides natively, so a profile
+ * naming only these is runnable everywhere. `sql` is the SQLite tier of the
+ * Data Engine (M10); the browser's own JS/WASM back the base `web` profile. */
+export const BUILTIN_PROFILE_ENGINES: ReadonlySet<string> = new Set(["sql"]);
+
+/**
+ * The profile's engine parts this reader cannot satisfy — everything after
+ * `web` that is not a {@link BUILTIN_PROFILE_ENGINES built-in}. Empty means
+ * the profile is runnable; non-empty is an honest `engine-missing` notice
+ * (a reader that ships Pyodide would pass its own set of extra engines).
+ */
+export function unsupportedProfileEngines(
+  profile: string,
+  provided: ReadonlySet<string> = BUILTIN_PROFILE_ENGINES,
+): string[] {
+  const parts = profile.split("+");
+  if (parts[0] !== "web") return parts; // malformed: nothing is satisfied
+  return parts.slice(1).filter((part) => !provided.has(part));
+}
+
 /** Shapes the facts for the consent screen (SPEC §9.1). */
 export function consentManifestFrom(
   facts: ReaderManifestFacts,

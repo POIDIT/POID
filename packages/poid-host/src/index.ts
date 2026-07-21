@@ -47,11 +47,13 @@ export { explain, FALLBACK_EXPLANATION, REGISTRY_EXPLANATIONS } from "./explanat
 export { type GuardResult, guardRequest, SCOPE_FIELDS } from "./guard.js";
 export { IndexedDbEngine } from "./idb-engine.js";
 export {
+  BUILTIN_PROFILE_ENGINES,
   consentManifestFrom,
   extractFacts,
   hostFacts,
   type ReaderManifestFacts,
   runGrant,
+  unsupportedProfileEngines,
 } from "./manifest-facts.js";
 export {
   applyMigrations,

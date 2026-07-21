@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kanban</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f5f7;
+        --col: #ffffff;
+        --line: #e2e4e8;
+        --ink: #1b1f24;
+        --muted: #6b7280;
+        --accent: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181d;
+          --col: #1f232b;
+          --line: #2c313b;
+          --ink: #e8eaed;
+          --muted: #9aa2ad;
+          --accent: #5b8cff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 15px/1.4 system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+      header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+      header .count { color: var(--muted); font-size: 13px; }
+      main {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        padding: 16px;
+        align-items: start;
+      }
+      .column {
+        background: var(--col);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px;
+        min-height: 120px;
+      }
+      .column h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin: 0 0 10px;
+      }
+      .card {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 10px;
+        margin-bottom: 8px;
+        cursor: grab;
+      }
+      .card:active { cursor: grabbing; }
+      .card .actions { display: flex; gap: 6px; margin-top: 6px; }
+      .card button {
+        font-size: 12px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--muted);
+        border-radius: 6px;
+        padding: 2px 7px;
+        cursor: pointer;
+      }
+      .add {
+        display: flex;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .add input {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 7px 9px;
+        font: inherit;
+      }
+      .add input::placeholder { color: var(--muted); }
+      .add button {
+        border: 1px dashed var(--line);
+        background: transparent;
+        color: var(--muted);
+        border-radius: 8px;
+        padding: 0 12px;
+        cursor: pointer;
+      }
+      .add button:hover { color: var(--accent); border-color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Kanban</h1>
+      <span class="count" id="count"></span>
+    </header>
+    <main id="board"></main>
+
+    <script type="module">
+      // The whole data layer is poid.db.docs — a Mongo-like document store the
+      // reader backs with SQLite. Nothing here knows or cares whether the data
+      // lives in the file (embedded), the vault, or a connection: the reader
+      // decides, and this code is identical in all three.
+      const cards = poid.db.docs.collection("cards");
+      const COLUMNS = [
+        ["todo", "To do"],
+        ["doing", "Doing"],
+        ["done", "Done"],
+      ];
+      const NEXT = { todo: "doing", doing: "done", done: "todo" };
+
+      const board = document.getElementById("board");
+      const count = document.getElementById("count");
+      let dragging = null;
+
+      async function render() {
+        const all = await cards.find({}, { sort: { order: 1 } });
+        board.replaceChildren();
+        for (const [key, label] of COLUMNS) {
+          const col = document.createElement("section");
+          col.className = "column";
+          col.dataset.column = key;
+          col.innerHTML = `<h2>${label}</h2>`;
+          for (const card of all.filter((c) => c.column === key)) {
+            col.append(cardEl(card));
+          }
+          col.append(addForm(key));
+          wireDrop(col, key);
+          board.append(col);
+        }
+        count.textContent = `${all.length} card${all.length === 1 ? "" : "s"}`;
+      }
+
+      function cardEl(card) {
+        const el = document.createElement("div");
+        el.className = "card";
+        el.draggable = true;
+        el.dataset.id = card._id;
+        const text = document.createElement("div");
+        text.textContent = card.title;
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const move = document.createElement("button");
+        move.textContent = "Move →";
+        move.addEventListener("click", () => setColumn(card._id, NEXT[card.column]));
+        const del = document.createElement("button");
+        del.textContent = "Delete";
+        del.addEventListener("click", () => remove(card._id));
+        actions.append(move, del);
+        el.append(text, actions);
+        el.addEventListener("dragstart", () => {
+          dragging = card._id;
+        });
+        return el;
+      }
+
+      function wireDrop(col, key) {
+        col.addEventListener("dragover", (e) => e.preventDefault());
+        col.addEventListener("drop", (e) => {
+          e.preventDefault();
+          if (dragging) setColumn(dragging, key);
+          dragging = null;
+        });
+      }
+
+      // An inline form, not prompt(): the app runs in a sandboxed iframe, and
+      // native modal dialogs are (correctly) disabled there.
+      function addForm(column) {
+        const form = document.createElement("form");
+        form.className = "add";
+        const input = document.createElement("input");
+        input.placeholder = "Add a card…";
+        input.setAttribute("aria-label", `Add a card to ${column}`);
+        const button = document.createElement("button");
+        button.type = "submit";
+        button.textContent = "Add";
+        form.append(input, button);
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const title = input.value.trim();
+          if (!title) return;
+          await cards.insert({ title, column, order: Date.now() });
+          await render();
+        });
+        return form;
+      }
+
+      async function setColumn(id, column) {
+        await cards.update({ _id: id }, { column });
+        render();
+      }
+
+      async function remove(id) {
+        await cards.delete({ _id: id });
+        render();
+      }
+
+      render();
+    </script>
+  </body>
+</html>

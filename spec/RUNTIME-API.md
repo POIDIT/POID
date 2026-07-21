@@ -93,6 +93,14 @@ poid.db.docs.collection(name: string): {
 `Query` supports a Mongo-like subset: `$eq $ne $gt $gte $lt $lte $in $nin $and $or $exists $regex`.
 Implemented over SQLite with a JSON index. **This is the migration target for apps that used MongoDB.**
 
+Semantics (normative):
+
+- **`_id`** is a string. If `insert` receives a document without one, the reader assigns a UUIDv4 and returns it. It is unique within the collection; a duplicate `_id` is rejected. `_id` is immutable — it cannot be changed by `update`.
+- **`update(query, patch)` is a shallow merge** (Mongo `$set`): each top-level key of `patch` replaces that field, other fields are untouched. A patch value that is an object replaces the whole field (not a deep merge). Update operators (`$set`, `$inc`, …) are **not** supported — pass plain fields. Dotted keys (`"meta.color"`) address a nested field.
+- **Missing vs null**: equality treats a missing field and a JSON `null` alike (`{f: null}` matches both), and `$ne` / `$nin` match documents where the field is absent — as in MongoDB.
+- **Types are not coerced**: `{done: true}` does not match a stored integer `1`, and `{n: 1}` does not match a stored `true`.
+- **Values** are JSON scalars. `$regex` takes a JavaScript regular-expression source string.
+
 ### 2.4 Slots
 
 ```ts

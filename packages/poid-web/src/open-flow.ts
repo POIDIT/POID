@@ -24,6 +24,7 @@ import {
   type Scope,
   type SqlHandlers,
   seedFromStore,
+  unsupportedProfileEngines,
 } from "@poid/host";
 import { VaultWasmEngine } from "./vault-engine.js";
 import { isContainerError, loadPoidWasm, type WebPoidHandle } from "./wasm-api.js";
@@ -99,16 +100,12 @@ export async function openBytes(bytes: Uint8Array): Promise<OpenOutcome> {
   }
 
   // Engines are provided by the reader, never the file (SPEC §5.4). This
-  // reader ships none beyond the browser's own JS/WASM, so any `web+<engine>`
-  // profile gets an honest notice instead of a broken run.
-  if (facts.profile !== "web") {
+  // reader provides the SQL tier natively (M10) but ships no Pyodide, so a
+  // `web+python` profile still gets an honest notice instead of a broken run.
+  const unsupported = unsupportedProfileEngines(facts.profile);
+  if (unsupported.length > 0) {
     poid.free();
-    const missing = Object.keys(facts.engines);
-    return {
-      kind: "engine-missing",
-      facts,
-      missingEngines: missing.length > 0 ? missing : facts.profile.split("+").slice(1),
-    };
+    return { kind: "engine-missing", facts, missingEngines: unsupported };
   }
 
   if (!facts.instanceId) {

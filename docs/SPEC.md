@@ -365,7 +365,9 @@ Key-value storage is insufficient for real applications. Conformant readers **MU
 
 Applications target the **POID Data Engine**, not MongoDB or PostgreSQL directly. Porting an existing application means rewriting its data layer against this API. This is a **port**, not a one-click conversion.
 
-`migrations/` **MAY** contain ordered migration scripts, applied by the reader when an application is updated in place and the schema version has advanced (§12).
+In `embedded` mode, the SQL tier's canonical form is `data/database.sql`: a human-readable UTF-8 SQL text dump, with the same archival rationale as `data/store.json` (§6.2) — a user can recover the data with nothing but a ZIP tool and `sqlite3`. The reader replays it into a fresh database on first open and regenerates it on export. `poid.db.docs` collections are stored as tables in that same database. `data/store.json` (kv) and `data/database.sql` (SQL/docs) coexist.
+
+`migrations/` **MAY** contain ordered migration scripts, applied by the reader when an application is updated in place and the schema version has advanced (§12.1).
 
 ---
 

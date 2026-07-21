@@ -7,9 +7,13 @@
 
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
+
+const require = createRequire(import.meta.url);
+const wasqliteWasm = require.resolve("wa-sqlite/dist/wa-sqlite.wasm");
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -88,6 +92,12 @@ const server = createServer((req, res) => {
   }
   if (url.startsWith("/python-fixture/") && !url.includes("..")) {
     serveFile(res, join(fixtureDir, url.slice("/python-fixture/".length)), typeFor(url));
+    return;
+  }
+  // The SQL engine's WASM (M10): the reader fetches it lazily on the first
+  // poid.db.sql / poid.db.docs call. Resolved from the installed package.
+  if (url === "/wa-sqlite.wasm") {
+    serveFile(res, wasqliteWasm, "application/wasm");
     return;
   }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });

@@ -34,3 +34,4 @@ packages/poid-stdlib/lib/
 packages/poid-stdlib/.cache/
 engines/.cache/
 packages/poid-host/e2e/fixtures/python-chart/deps/
+examples/**/*.poid

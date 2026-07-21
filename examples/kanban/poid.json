@@ -1,0 +1,24 @@
+{
+  "poid": "1.0",
+  "type": "app",
+  "app": {
+    "id": "dev.poid.kanban",
+    "name": "Kanban",
+    "version": "1.0.0",
+    "author": "POID",
+    "description": "A kanban board that stores its cards in poid.db.docs.",
+    "license": "MIT"
+  },
+  "runtime": {
+    "profile": "web+sql"
+  },
+  "entry": "app/index.html",
+  "storage": {
+    "mode": "embedded",
+    "schema_version": 1,
+    "quota_mb": 32
+  },
+  "permissions": {
+    "network": []
+  }
+}
