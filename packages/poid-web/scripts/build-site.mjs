@@ -13,9 +13,12 @@
 
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
+
+const require = createRequire(import.meta.url);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = join(here, "..");
@@ -61,11 +64,20 @@ await esbuild.build({
 cpSync(join(pkg, "public"), site, { recursive: true });
 cpSync(join(wasmDir, "poid_wasm.js"), join(site, "wasm", "poid_wasm.js"));
 cpSync(join(wasmDir, "poid_wasm_bg.wasm"), join(site, "wasm", "poid_wasm_bg.wasm"));
+// The SQL engine's WASM (M10): fetched lazily on the first poid.db.sql /
+// poid.db.docs call, precached by the service worker for offline use.
+cpSync(require.resolve("wa-sqlite/dist/wa-sqlite.wasm"), join(site, "wasm", "wa-sqlite.wasm"));
 
 // 4. Stamp the service worker with a digest of the shell, so a new deploy
 //    rotates the cache and an unchanged deploy keeps it.
 const hash = createHash("sha256");
-for (const f of ["app.js", "index.html", "styles.css", "wasm/poid_wasm_bg.wasm"]) {
+for (const f of [
+  "app.js",
+  "index.html",
+  "styles.css",
+  "wasm/poid_wasm_bg.wasm",
+  "wasm/wa-sqlite.wasm",
+]) {
   hash.update(readFileSync(join(site, f)));
 }
 // replaceAll: the placeholder also appears in the file's doc comment, and a

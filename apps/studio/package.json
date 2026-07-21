@@ -20,7 +20,8 @@
     "@poid/sdk": "workspace:*",
     "@poid/ui": "workspace:*",
     "@tauri-apps/api": "^2.5.0",
-    "@tauri-apps/plugin-dialog": "^2.2.0"
+    "@tauri-apps/plugin-dialog": "^2.2.0",
+    "wa-sqlite": "1.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0",

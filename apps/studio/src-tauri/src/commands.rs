@@ -318,3 +318,44 @@ pub fn vault_switch_slot(
         .map_err(|e| e.to_string())?;
     vault_hydrate(window, vault)
 }
+
+/// Loads the window's active-slot SQL database bytes (base64), if any exist
+/// (M10.3). Scope comes from the window label, never from a parameter.
+#[tauri::command]
+pub fn vault_sql_load(
+    window: WebviewWindow,
+    vault: State<'_, VaultState>,
+) -> Result<Option<String>, String> {
+    let (id, quota) = window_instance(&window, &vault)?;
+    let slot = vault
+        .with_instance(id, quota, |inst| Ok(inst.doc().current_slot()))
+        .map_err(|e| e.to_string())?;
+    let bytes = vault
+        .vault()
+        .sql_load(id, &slot)
+        .map_err(|e| e.to_string())?;
+    Ok(bytes.map(|b| BASE64.encode(b)))
+}
+
+/// Saves the window's active-slot SQL database bytes (base64), atomically
+/// (M10.3). The engine already enforced the quota via `max_page_count`; the
+/// vault's size check is the backstop and maps to `QUOTA_EXCEEDED`.
+#[tauri::command]
+pub fn vault_sql_save(
+    window: WebviewWindow,
+    vault: State<'_, VaultState>,
+    bytes_b64: String,
+) -> Result<(), String> {
+    let (id, quota) = window_instance(&window, &vault)?;
+    let slot = vault
+        .with_instance(id, quota, |inst| Ok(inst.doc().current_slot()))
+        .map_err(|e| e.to_string())?;
+    let bytes = BASE64.decode(&bytes_b64).map_err(|e| e.to_string())?;
+    vault
+        .vault()
+        .sql_save(id, &slot, &bytes, quota)
+        .map_err(|e| match e {
+            poid_vault::VaultError::QuotaExceeded { .. } => "QUOTA_EXCEEDED".to_owned(),
+            other => other.to_string(),
+        })
+}

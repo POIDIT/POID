@@ -162,6 +162,20 @@ impl WebPoid {
         self.inner.set_data(data);
     }
 
+    /// Embedded SQL state (`data/database.sql`), if present (M10): a UTF-8
+    /// SQL text dump the reader executes into a fresh database on first open.
+    #[wasm_bindgen(js_name = sqlData)]
+    pub fn sql_data(&self) -> Option<Vec<u8>> {
+        self.inner.sql_data().map(<[u8]>::to_vec)
+    }
+
+    /// Replaces the embedded SQL state (M10), used before *Download updated
+    /// file* when the application stored anything in `poid.db.sql`/`docs`.
+    #[wasm_bindgen(js_name = setSqlData)]
+    pub fn set_sql_data(&mut self, dump: &[u8]) {
+        self.inner.set_sql_data(dump);
+    }
+
     /// Packs the container deterministically (SPEC §2.1) for download.
     /// Because the signature payload excludes `instance` and storage state
     /// (SPEC §9.3.2), a signed container stays validly signed after

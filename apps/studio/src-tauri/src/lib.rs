@@ -94,7 +94,9 @@ pub fn run() {
             commands::vault_kv_set,
             commands::vault_kv_delete,
             commands::vault_kv_clear,
-            commands::vault_switch_slot
+            commands::vault_switch_slot,
+            commands::vault_sql_load,
+            commands::vault_sql_save
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {

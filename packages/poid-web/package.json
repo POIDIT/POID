@@ -19,7 +19,8 @@
   "dependencies": {
     "@poid/host": "workspace:*",
     "@poid/sdk": "workspace:*",
-    "@poid/ui": "workspace:*"
+    "@poid/ui": "workspace:*",
+    "wa-sqlite": "1.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

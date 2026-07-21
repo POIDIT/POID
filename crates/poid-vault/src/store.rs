@@ -67,14 +67,15 @@ impl Vault {
         })
     }
 
-    /// Removes an instance's document (Fork rollback, Duplicate-as-empty of
-    /// the source, uninstall cleanup). Removing a missing entry is a no-op.
+    /// Removes an instance's document and its SQL blobs (Fork rollback,
+    /// Duplicate-as-empty of the source, uninstall cleanup). Removing a
+    /// missing entry is a no-op.
     pub fn remove_instance(&self, id: Uuid) -> Result<()> {
         let path = self.instance_path(id);
         if path.exists() {
             fs::remove_file(path)?;
         }
-        Ok(())
+        self.sql_remove_instance(id)
     }
 }
 

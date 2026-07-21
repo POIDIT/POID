@@ -13,6 +13,9 @@ use crate::write::{pack, PoidBuilder};
 const DATA_STORE: &str = "data/store.json";
 /// Path of the encrypted embedded state when `storage.protected` (SPEC §9.2).
 const DATA_STORE_ENC: &str = "data/store.enc";
+/// Path of the embedded SQL state (M10): a human-readable SQL text dump —
+/// the same archival rationale as `data/store.json` (SPEC §6.2).
+const DATA_SQL: &str = "data/database.sql";
 
 /// A validated, opened container.
 ///
@@ -110,6 +113,17 @@ impl Poid {
     /// Replaces the embedded application state (SPEC §6.2).
     pub fn set_data(&mut self, data: &[u8]) {
         self.files.insert(DATA_STORE.to_owned(), data.to_vec());
+    }
+
+    /// Embedded SQL state (`data/database.sql`), if present: a UTF-8 SQL
+    /// text dump the reader executes into a fresh database on first open.
+    pub fn sql_data(&self) -> Option<&[u8]> {
+        self.file(DATA_SQL)
+    }
+
+    /// Replaces the embedded SQL state (see [`Poid::sql_data`]).
+    pub fn set_sql_data(&mut self, dump: &[u8]) {
+        self.files.insert(DATA_SQL.to_owned(), dump.to_vec());
     }
 
     /// Replaces one named slot's embedded state, `slots/<name>/store.json`

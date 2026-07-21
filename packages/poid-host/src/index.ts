@@ -51,6 +51,7 @@ export {
 export { BlobOrigin, type SyntheticOrigin } from "./origin.js";
 export { type MountOptions, mountReader, type ReaderHandle } from "./reader.js";
 export { seedFromStore } from "./seed.js";
+export { dumpSql } from "./sql-dump.js";
 export {
   type ScalarFunction,
   type SqlCallOptions,
@@ -59,5 +60,12 @@ export {
   sqlBrokerHandler,
   WaSqliteEngine,
 } from "./sql-engine.js";
+export {
+  IdbSqlPersistence,
+  makeSqlHandlers,
+  type SqlHandlers,
+  type SqlHandlersOptions,
+  type SqlPersistence,
+} from "./sql-persistence.js";
 export type { SqliteWasmSource } from "./sql-wasm-api.js";
 export { Watchdog, type WatchdogClock, type WatchdogOptions } from "./watchdog.js";

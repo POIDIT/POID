@@ -12,12 +12,15 @@ import {
   explain,
   extractFacts,
   hostFacts,
+  IdbSqlPersistence,
   IndexedDbEngine,
+  makeSqlHandlers,
   mountReader,
   type ReaderHandle,
   type ReaderManifestFacts,
   runGrant,
   type Scope,
+  type SqlHandlers,
   seedFromStore,
 } from "@poid/host";
 import { VaultWasmEngine } from "./vault-engine.js";
@@ -124,12 +127,17 @@ export async function openBytes(bytes: Uint8Array): Promise<OpenOutcome> {
 /** The engines the Web Reader mounts with (both flush asynchronously). */
 export type WebRunEngine = IndexedDbEngine | VaultWasmEngine;
 
+/** IndexedDB database name for the Web Reader's SQL blobs (M10). */
+const SQL_DB = "poid-web-sql";
+
 /** A mounted (or consent-declined) reader session. */
 export interface RunSession {
   handle: ReaderHandle;
   /** False when the user chose Cancel on the consent screen. */
   ran: boolean;
   engine: WebRunEngine;
+  /** The SQL tier for this session; `flush`/`dump` feed the download path. */
+  sql: SqlHandlers;
   scope: Scope;
 }
 
@@ -170,6 +178,19 @@ export async function runContainer(
     db = idb;
   }
 
+  // The SQL tier (M10): always persisted to IndexedDB in the Web Reader (it
+  // cannot write back to the file). The engine wakes lazily on the first
+  // poid.db.sql / poid.db.docs call — after consent — and an embedded
+  // container's `data/database.sql` seeds a fresh scope then. A declined app
+  // never reaches that first call, so it leaves no SQL trace.
+  const sqlSeed =
+    facts.storageMode === "embedded" && !facts.protectedData ? poid.sqlData() : undefined;
+  const sql = makeSqlHandlers({
+    wasm: { wasmUrl: new URL("wasm/wa-sqlite.wasm", document.baseURI).href },
+    persistence: await IdbSqlPersistence.open(SQL_DB),
+    seedSql: sqlSeed ?? undefined,
+  });
+
   // Serve the app + subresources as blob URLs (SPEC §5.2.1) so a multi-file
   // app's `<script src>` runs — works offline and from file://, unlike a
   // service worker (which cannot control the sandboxed opaque-origin iframe).
@@ -188,6 +209,7 @@ export async function runContainer(
     connectSrc: facts.permissions.network,
     sdkSource,
     engine: db,
+    handlers: { sql: sql.sql, docs: sql.docs },
     quotaBytes: facts.quotaMb === null ? undefined : facts.quotaMb * 1024 * 1024,
     origin,
   });
@@ -197,5 +219,5 @@ export async function runContainer(
     db.kvClear(scope);
     await db.flush();
   }
-  return { handle, ran, engine: db, scope };
+  return { handle, ran, engine: db, sql, scope };
 }
