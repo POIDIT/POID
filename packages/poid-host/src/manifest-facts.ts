@@ -31,6 +31,9 @@ export interface ReaderManifestFacts {
   protectedData: boolean;
   /** `storage.quota_mb` — requested quota; null = the reader default (64). */
   quotaMb: number | null;
+  /** `storage.schema_version` — the SQL schema version the app expects
+   * (SPEC §12); 0 when unset. Drives migrations on update-in-place. */
+  schemaVersion: number;
   permissions: {
     network: string[];
     filesystem: "none" | "user-initiated";
@@ -96,6 +99,10 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
     slots: asBool(storage.slots),
     protectedData: asBool(storage.protected),
     quotaMb: typeof storage.quota_mb === "number" ? storage.quota_mb : null,
+    schemaVersion:
+      typeof storage.schema_version === "number" && storage.schema_version > 0
+        ? Math.floor(storage.schema_version)
+        : 0,
     permissions: {
       network: asStringArray(perms.network),
       filesystem: perms.filesystem === "user-initiated" ? "user-initiated" : "none",

@@ -145,6 +145,11 @@
           "default": false
         },
         "quota_mb": { "type": "integer", "minimum": 1 },
+        "schema_version": {
+          "description": "SQL schema version the app expects (SPEC section 12). Advancing it between versions runs migrations/ on update-in-place.",
+          "type": "integer",
+          "minimum": 0
+        },
         "requires": {
           "description": "REQUIRED if mode = connection.",
           "type": "object",

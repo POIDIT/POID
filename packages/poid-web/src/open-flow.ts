@@ -17,6 +17,7 @@ import {
   loopbackConnection,
   makeSqlHandlers,
   mountReader,
+  parseMigrations,
   type ReaderHandle,
   type ReaderManifestFacts,
   runGrant,
@@ -205,6 +206,10 @@ export async function runContainer(
             facts.storageMode === "embedded" && !facts.protectedData
               ? (poid.sqlData() ?? undefined)
               : undefined,
+          // Update-in-place migrations (SPEC §12): a database below the app's
+          // current schema is bridged up on open.
+          schemaVersion: facts.schemaVersion,
+          migrations: parseMigrations(files),
         });
 
   // Serve the app + subresources as blob URLs (SPEC §5.2.1) so a multi-file

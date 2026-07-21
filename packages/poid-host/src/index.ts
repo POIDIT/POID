@@ -53,6 +53,12 @@ export {
   type ReaderManifestFacts,
   runGrant,
 } from "./manifest-facts.js";
+export {
+  applyMigrations,
+  type Migration,
+  parseMigrations,
+  schemaVersionOf,
+} from "./migrations.js";
 export { BlobOrigin, type SyntheticOrigin } from "./origin.js";
 export { type MountOptions, mountReader, type ReaderHandle } from "./reader.js";
 export { seedFromStore } from "./seed.js";

@@ -144,6 +144,13 @@ pub enum PoidError {
         /// What is wrong with the block.
         reason: String,
     },
+    /// An "update program, keep data" (SPEC §12) was attempted between two
+    /// containers whose `app.id` differ, or that are not both `type: app`.
+    #[error("cannot update: {why}")]
+    UpdateMismatch {
+        /// Why the two containers cannot be an update pair.
+        why: String,
+    },
     /// Filesystem error (only reachable with the `fs` feature).
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
@@ -181,6 +188,7 @@ impl PoidError {
             Self::IntegrityMismatch { .. } => "integrity-mismatch",
             Self::SignatureInvalid => "signature-invalid",
             Self::SignatureMalformed { .. } => "signature-malformed",
+            Self::UpdateMismatch { .. } => "update-mismatch",
             Self::Io(_) => "io",
         }
     }
@@ -214,6 +222,9 @@ impl PoidError {
             Self::WorkspaceAppsMissing => "POID-041",
             Self::SignatureInvalid => "POID-050",
             Self::SignatureMalformed { .. } => "POID-051",
+            // Not a container-validity failure: an operation refused a bad
+            // update pair. No conformance registry entry.
+            Self::UpdateMismatch { .. } => return None,
             Self::Io(_) => return None,
         })
     }

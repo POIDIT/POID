@@ -149,6 +149,7 @@ Implementations **MUST** enforce a decompression ratio limit (RECOMMENDED: 100:1
     "slots": false,                       // true = multiple named states
     "protected": false,                   // true = data encrypted at rest (§9.2)
     "quota_mb": 64,                       // OPTIONAL, requested quota
+    "schema_version": 0,                  // OPTIONAL, SQL schema version (§12)
     "requires": {                         // REQUIRED if mode = "connection"
       "kind": "sql",                      // "kv" | "sql" | "docs" | "files"
       "hint": "supabase"                  // OPTIONAL, suggested provider
@@ -468,14 +469,28 @@ Zero servers, zero cloud, zero GDPR exposure. This is a first-class workflow, no
 
 ## 12. Application updates
 
-Readers **MUST** support **"Update program, keep data"**:
+Readers **MUST** support **"Update program, keep data"**. Given a newer POID with the **same `app.id`**:
 
-1. Replace `app/`, `deps/`, and the relevant `runtime` fields from a newer POID with the same `app.id`.
-2. Preserve `data/` (or the vault entry) and `instance.id`.
-3. If the data schema version has advanced, apply `migrations/` in order.
-4. Re-request consent if permissions have widened.
+1. Replace the **program**: the `app/`, `deps/` and `migrations/` trees, and the program-describing manifest fields (`app`, `runtime`, `entry`, `permissions`, and the app-declared `storage.quota_mb` / `storage.schema_version`). A valid `signature/` from the newer POID replaces the old one.
+2. Preserve the **instance's data**: the `data/` and `slots/` trees (or the vault entry), `instance.id`, and the user's data-placement choices `storage.mode` and `storage.protected` — which the reader may have converted (§6.1, §9.2) and which the signature payload excludes (§9.3.2), so preserving them keeps a valid signature valid.
+3. If the schema version has advanced, apply `migrations/` (§12.1).
+4. Re-request consent if the new program requests any permission the old one did not (a superset check across every axis).
 
 Without this, POIDs are disposable and nobody will build anything serious on the format.
+
+### 12.1 Migrations (normative)
+
+`migrations/` **MAY** contain ordered SQL scripts named `migrations/NNNN-<name>.sql`, where `NNNN` is a positive integer (the schema version the script produces) and `<name>` matches `[A-Za-z0-9._-]+`. Two scripts **MUST NOT** share the same number.
+
+The application declares the schema version its code expects in `storage.schema_version` (a non-negative integer; absent means `0`). Each SQL scope's database records the version its data is at; readers are **RECOMMENDED** to track this with `PRAGMA user_version`.
+
+On open, the reader reconciles the two:
+
+- A **fresh** database (no stored data yet) is stamped at the manifest's `storage.schema_version`. A new install builds the current schema from the application's own code or an embedded `data/database.sql` (§6.2); migrations are **not** run against an empty database.
+- An **existing** database whose recorded version is **below** the manifest's version has every migration between the two applied in ascending order. Each migration and the version bump it produces **MUST** be one atomic transaction, so an interrupted update re-runs only the migration that did not commit.
+- A recorded version **above** the manifest's version (data newer than code) **MUST** be refused, not silently downgraded.
+
+Migrations are **SQL only**. Running container code outside the sandbox to migrate data would breach §5.1; the key-value tier is schemaless and migrates in application code.
 
 ---
 

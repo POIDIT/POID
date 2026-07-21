@@ -6,7 +6,9 @@ use uuid::Uuid;
 
 use crate::error::PoidError;
 use crate::integrity::tree_digest;
-use crate::manifest::{ExtraFields, Instance, Manifest, Storage, StorageMode};
+use crate::manifest::{
+    ExtraFields, FilesystemAccess, Instance, Manifest, Permissions, Storage, StorageMode,
+};
 use crate::write::{pack, PoidBuilder};
 
 /// Path of the embedded application state (SPEC §6.2).
@@ -192,6 +194,7 @@ impl Poid {
             slots: None,
             protected: None,
             quota_mb: None,
+            schema_version: None,
             requires: None,
             extra: ExtraFields::new(),
         })
@@ -248,8 +251,301 @@ impl Poid {
         Ok(())
     }
 
+    /// Updates this container's **program** in place from `newer`, preserving
+    /// the user's **data** and identity — the "Update program, keep data"
+    /// flow (SPEC §12). Both containers MUST be `type: app` and share the same
+    /// `app.id`.
+    ///
+    /// Swapped (the program, from `newer`): `app/`, `deps/`, `migrations/`,
+    /// `signature/`, and every program-describing manifest field (`app`,
+    /// `runtime`, `entry`, `permissions`, and the app-declared `storage`
+    /// fields `quota_mb` / `schema_version`).
+    ///
+    /// Preserved (the instance's data, from `self`): `data/`, `slots/`,
+    /// `instance.id`, and the user's data-placement choices
+    /// `storage.mode` / `storage.protected` (which the reader may have
+    /// converted, SPEC §6.1 / §9.2). `storage.slots` stays enabled if the
+    /// user turned it on.
+    ///
+    /// The returned [`UpdateReport`] tells the reader whether permissions
+    /// widened (re-request consent) and whether the schema version advanced
+    /// (apply `migrations/` on next open).
+    pub fn update_program(&mut self, newer: &Poid) -> Result<UpdateReport, PoidError> {
+        let old_app = self
+            .manifest
+            .app
+            .as_ref()
+            .ok_or_else(|| PoidError::UpdateMismatch {
+                why: "the file being updated is not an application".to_owned(),
+            })?;
+        let new_app = newer
+            .manifest
+            .app
+            .as_ref()
+            .ok_or_else(|| PoidError::UpdateMismatch {
+                why: "the update source is not an application".to_owned(),
+            })?;
+        if old_app.id != new_app.id {
+            return Err(PoidError::UpdateMismatch {
+                why: format!(
+                    "app.id differs: `{}` cannot be updated by `{}`",
+                    old_app.id, new_app.id
+                ),
+            });
+        }
+
+        let permissions_widened = permissions_widened(
+            self.manifest.permissions.as_ref(),
+            newer.manifest.permissions.as_ref(),
+        );
+        let old_schema_version = schema_version_of(&self.manifest);
+        let new_schema_version = schema_version_of(&newer.manifest);
+
+        // Preserve the instance's data-placement decisions before overwriting.
+        let preserved_instance = self.manifest.instance.clone();
+        let preserved_mode = self.manifest.storage.as_ref().map(|s| s.mode);
+        let preserved_protected = self.manifest.storage.as_ref().and_then(|s| s.protected);
+        let user_enabled_slots = self.manifest.storage.as_ref().and_then(|s| s.slots) == Some(true);
+
+        // Swap program files: keep only the data trees, then copy in the new
+        // program's files (which never include the data trees of a packed
+        // app, nor the generated manifest.json / mimetype).
+        self.files
+            .retain(|k, _| k.starts_with("data/") || k.starts_with("slots/"));
+        for (path, bytes) in &newer.files {
+            if path.starts_with("data/") || path.starts_with("slots/") {
+                continue;
+            }
+            self.files.insert(path.clone(), bytes.clone());
+        }
+
+        // Take the new manifest wholesale, then restore preserved fields.
+        let mut manifest = newer.manifest.clone();
+        manifest.instance = preserved_instance;
+        if let Some(storage) = &mut manifest.storage {
+            if let Some(mode) = preserved_mode {
+                storage.mode = mode;
+            }
+            storage.protected = preserved_protected;
+            if user_enabled_slots {
+                storage.slots = Some(true);
+            }
+        }
+        self.manifest = manifest;
+
+        // The digests must match the swapped app/ and deps/ trees. The
+        // signature payload excludes instance and storage (SPEC §9.3.2), so
+        // `newer`'s signature — copied above — stays valid over the result.
+        crate::integrity::refresh(&mut self.manifest, &self.files);
+
+        Ok(UpdateReport {
+            permissions_widened,
+            old_schema_version,
+            new_schema_version,
+        })
+    }
+
     fn remove_state_trees(&mut self) {
         self.files
             .retain(|k, _| !k.starts_with("data/") && !k.starts_with("slots/"));
+    }
+}
+
+/// What an "update program, keep data" (SPEC §12) changed that the reader
+/// must react to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateReport {
+    /// The new program requests a permission the old one did not; the reader
+    /// MUST re-request consent before running it (SPEC §12 step 4).
+    pub permissions_widened: bool,
+    /// The data's schema version before the update.
+    pub old_schema_version: u32,
+    /// The program's schema version after the update. When greater than
+    /// `old_schema_version`, the reader applies `migrations/` on next open
+    /// (SPEC §12 step 3).
+    pub new_schema_version: u32,
+}
+
+impl UpdateReport {
+    /// Whether the schema version advanced (migrations will run on next open).
+    pub fn schema_advanced(&self) -> bool {
+        self.new_schema_version > self.old_schema_version
+    }
+}
+
+fn schema_version_of(manifest: &Manifest) -> u32 {
+    manifest
+        .storage
+        .as_ref()
+        .and_then(|s| s.schema_version)
+        .unwrap_or(0)
+}
+
+/// True if `newer` requests any capability `old` did not — a superset check
+/// across every permission axis (SPEC §12 step 4). Absent = the empty/most-
+/// restrictive value, so adding an axis counts as widening.
+fn permissions_widened(old: Option<&Permissions>, newer: Option<&Permissions>) -> bool {
+    let Some(newer) = newer else {
+        return false;
+    };
+    let empty = Permissions::default();
+    let old = old.unwrap_or(&empty);
+
+    let old_net = old.network.as_deref().unwrap_or(&[]);
+    let new_net = newer.network.as_deref().unwrap_or(&[]);
+    if new_net.iter().any(|o| !old_net.contains(o)) {
+        return true;
+    }
+    let old_mcp = old.mcp.as_deref().unwrap_or(&[]);
+    let new_mcp = newer.mcp.as_deref().unwrap_or(&[]);
+    if new_mcp.iter().any(|m| !old_mcp.contains(m)) {
+        return true;
+    }
+    // Filesystem widens only none -> user-initiated.
+    let fs_widened = matches!(newer.filesystem, Some(FilesystemAccess::UserInitiated))
+        && !matches!(old.filesystem, Some(FilesystemAccess::UserInitiated));
+    let flag_widened = |old_flag: Option<bool>, new_flag: Option<bool>| {
+        new_flag == Some(true) && old_flag != Some(true)
+    };
+    fs_widened
+        || flag_widened(old.clipboard, newer.clipboard)
+        || flag_widened(old.print, newer.print)
+        || flag_widened(old.notifications, newer.notifications)
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    use crate::manifest::{Permissions, StorageMode};
+
+    /// Builds an opened app POID: given version, schema_version, one app file,
+    /// and permissions. Packed and reopened so it is a realistic container.
+    fn app(
+        version: &str,
+        schema_version: Option<u32>,
+        index_html: &str,
+        permissions: Permissions,
+    ) -> Poid {
+        let mut manifest =
+            Manifest::new_app("com.example.kanban", "Kanban", version, "app/index.html");
+        manifest.permissions = Some(permissions);
+        if let Some(storage) = &mut manifest.storage {
+            storage.schema_version = schema_version;
+        }
+        let builder = PoidBuilder::new(manifest)
+            .file("app/index.html", index_html.as_bytes().to_vec())
+            .unwrap();
+        crate::open(&pack(builder).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn swaps_program_keeps_data_and_identity() {
+        let id = Uuid::new_v4();
+        let mut v1 = app("1.0.0", Some(1), "<h1>v1</h1>", Permissions::default());
+        v1.set_instance_id(id);
+        v1.set_data(br#"{"kept":true}"#);
+
+        let v2 = app("2.0.0", Some(2), "<h1>v2</h1>", Permissions::default());
+        let report = v1.update_program(&v2).unwrap();
+
+        // Program swapped.
+        assert_eq!(v1.file("app/index.html"), Some(&b"<h1>v2</h1>"[..]));
+        assert_eq!(v1.manifest().app.as_ref().unwrap().version, "2.0.0");
+        // Data and identity kept.
+        assert_eq!(v1.data(), Some(&br#"{"kept":true}"#[..]));
+        assert_eq!(v1.manifest().instance.as_ref().unwrap().id, Some(id));
+        // Report signals a migration is due.
+        assert!(report.schema_advanced());
+        assert_eq!(
+            (report.old_schema_version, report.new_schema_version),
+            (1, 2)
+        );
+        assert!(!report.permissions_widened);
+        // The result is still a valid container.
+        let bytes = v1.to_bytes().unwrap();
+        crate::open(&bytes).unwrap();
+    }
+
+    #[test]
+    fn preserves_the_users_storage_mode() {
+        let mut v1 = app("1.0.0", Some(1), "<h1>v1</h1>", Permissions::default());
+        // The user converted this instance to vault (M08).
+        v1.convert_storage_mode(StorageMode::Vault);
+        let v2 = app("2.0.0", Some(2), "<h1>v2</h1>", Permissions::default());
+        v1.update_program(&v2).unwrap();
+        assert_eq!(
+            v1.manifest().storage.as_ref().unwrap().mode,
+            StorageMode::Vault
+        );
+    }
+
+    #[test]
+    fn detects_widened_permissions() {
+        let mut v1 = app("1.0.0", Some(1), "x", Permissions::default());
+        let widened = Permissions {
+            network: Some(vec!["https://api.example.com".to_owned()]),
+            ..Permissions::default()
+        };
+        let v2 = app("2.0.0", Some(1), "y", widened);
+        let report = v1.update_program(&v2).unwrap();
+        assert!(report.permissions_widened);
+        assert!(!report.schema_advanced());
+    }
+
+    #[test]
+    fn narrowing_permissions_is_not_widening() {
+        let broad = Permissions {
+            network: Some(vec!["https://a.example".to_owned()]),
+            clipboard: Some(true),
+            ..Permissions::default()
+        };
+        let mut v1 = app("1.0.0", Some(1), "x", broad);
+        let v2 = app("2.0.0", Some(1), "y", Permissions::default());
+        let report = v1.update_program(&v2).unwrap();
+        assert!(!report.permissions_widened);
+    }
+
+    #[test]
+    fn refuses_a_different_app_id() {
+        let mut v1 = app("1.0.0", Some(1), "x", Permissions::default());
+        let mut other = Manifest::new_app("com.example.other", "Other", "1.0.0", "app/index.html");
+        other.permissions = Some(Permissions::default());
+        let other = crate::open(
+            &pack(
+                PoidBuilder::new(other)
+                    .file("app/index.html", b"z".to_vec())
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let err = v1.update_program(&other).unwrap_err();
+        assert_eq!(err.code(), "update-mismatch");
+    }
+
+    #[test]
+    fn a_signed_update_stays_valid() {
+        // The signature payload excludes instance and storage (SPEC 9.3.2),
+        // so preserving them across the swap keeps the new program's
+        // signature valid over the updated container.
+        let seed = [7u8; 32];
+        let id = Uuid::new_v4();
+        let mut v1 = app("1.0.0", Some(1), "<h1>v1</h1>", Permissions::default());
+        v1.set_instance_id(id);
+        v1.set_data(br#"{"kept":1}"#);
+
+        let mut v2 = app("2.0.0", Some(2), "<h1>v2</h1>", Permissions::default());
+        v2.sign(&seed).unwrap();
+        assert!(matches!(
+            v2.signature_status().unwrap(),
+            crate::SignatureStatus::Valid { .. }
+        ));
+
+        v1.update_program(&v2).unwrap();
+        // The copied signature still verifies over the updated container.
+        assert!(matches!(
+            v1.signature_status().unwrap(),
+            crate::SignatureStatus::Valid { .. }
+        ));
     }
 }

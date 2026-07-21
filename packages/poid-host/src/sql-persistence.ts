@@ -14,6 +14,7 @@
 import type { BrokerHandlers } from "./broker.js";
 import { DocsStore, docsBrokerHandler, docsRegexpFunction } from "./docs-store.js";
 import type { Scope } from "./engine.js";
+import { applyMigrations, type Migration, stampSchemaVersion } from "./migrations.js";
 import { dumpSql } from "./sql-dump.js";
 import {
   type ScalarFunction,
@@ -50,6 +51,15 @@ export interface SqlHandlersOptions {
    * Chosen by the reader, never by the app.
    */
   scopeFor?: ScopeResolver;
+  /**
+   * The manifest's `storage.schema_version` (SPEC §12). A fresh scope is
+   * stamped at this version; an existing scope below it is migrated up to it.
+   * Default 0 — apps without a schema version and without migrations are
+   * completely unaffected.
+   */
+  schemaVersion?: number;
+  /** The container's ordered `migrations/` scripts (see {@link parseMigrations}). */
+  migrations?: Migration[];
   /** Extra engine tuning; `regexp` for the document store is always added. */
   engineOptions?: Omit<SqlEngineOptions, "persist">;
 }
@@ -111,20 +121,37 @@ export function makeSqlHandlers(options: SqlHandlersOptions): SqlHandlers {
     return ready;
   }
 
-  /** Seeds `scope` exactly once, before its first call: persisted bytes
-   * win; a fresh scope replays the container's embedded SQL, if any. */
+  /**
+   * Prepares `scope` exactly once, before its first call: loads persisted
+   * bytes (or seeds a fresh scope from the embedded dump), then reconciles
+   * its schema version — stamp a fresh database at the app's current
+   * version, migrate an older one up to it (SPEC §12).
+   */
   function seedScope(engine: WaSqliteEngine, scope: Scope): Promise<void> {
     const key = partition(scope);
     let pending = seeded.get(key);
     if (!pending) {
       pending = (async () => {
         const bytes = await options.persistence?.load(scope);
-        if (bytes && bytes.byteLength > 0) {
-          engine.load(scope, bytes);
-          return;
-        }
-        if (options.seedSql && options.seedSql.byteLength > 0) {
+        const fresh = !(bytes && bytes.byteLength > 0);
+        if (!fresh) {
+          engine.load(scope, bytes as Uint8Array);
+        } else if (options.seedSql && options.seedSql.byteLength > 0) {
           await engine.exec(scope, new TextDecoder().decode(options.seedSql));
+        }
+
+        const schemaVersion = options.schemaVersion ?? 0;
+        const migrations = options.migrations ?? [];
+        if (schemaVersion > 0 || migrations.length > 0) {
+          if (fresh) {
+            // A new install is already at the current schema (built by the
+            // app's own code / the seed); mark it so, don't migrate an empty
+            // database.
+            await stampSchemaVersion(engine, scope, schemaVersion);
+          } else {
+            // Existing data: bridge it up to the app's current schema.
+            await applyMigrations(engine, scope, schemaVersion, migrations);
+          }
         }
       })();
       seeded.set(key, pending);

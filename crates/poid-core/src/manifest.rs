@@ -179,6 +179,11 @@ pub struct Storage {
     /// Requested storage quota in MiB.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_mb: Option<u64>,
+    /// The SQL schema version the application's code expects (SPEC §12). When
+    /// this advances between two versions of an app, the reader applies
+    /// `migrations/` on update-in-place. Absent means 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_version: Option<u32>,
     /// Backend requirement; required when `mode` is `connection`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires: Option<StorageRequires>,
@@ -357,6 +362,7 @@ impl Manifest {
                 slots: None,
                 protected: None,
                 quota_mb: None,
+                schema_version: None,
                 requires: None,
                 extra: ExtraFields::new(),
             }),
