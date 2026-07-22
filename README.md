@@ -62,6 +62,7 @@ pnpm install && pnpm build && pnpm test
 - [spec/RUNTIME-API.md](spec/RUNTIME-API.md) — the `window.poid` API surface
 - [CONVENTIONS.md](CONVENTIONS.md) — engineering conventions
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute
+- [KNOWN-GAPS.md](KNOWN-GAPS.md) — what is unfinished, and what is finished but unverified
 
 ## License
 
