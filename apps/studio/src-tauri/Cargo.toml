@@ -29,7 +29,10 @@ serde_json = "1"
 base64 = "0.22"
 poid-core = { path = "../../../crates/poid-core" }
 poid-vault = { path = "../../../crates/poid-vault" }
+poid-broker = { path = "../../../crates/poid-broker" }
+poid-connections = { path = "../../../crates/poid-connections" }
 uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["sync"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
@@ -45,3 +48,18 @@ missing_docs = "deny"
 [lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
+
+# Studio is a desktop application people download, and "~10 MB, not 120 MB" is
+# part of what POID claims to be — so the release profile is tuned for size
+# rather than left on Cargo's defaults.
+#
+# M11 added the network and database stacks (reqwest, rustls, tokio-postgres),
+# which roughly doubled an unoptimised build. These settings pay most of that
+# back. Build time goes up appreciably; that cost lands on CI and on release
+# builds, not on anyone developing, since `cargo build` is unaffected.
+[profile.release]
+# One codegen unit plus LTO lets the linker drop the large parts of these
+# dependencies that a POID reader never calls.
+codegen-units = 1
+lto = true
+strip = true

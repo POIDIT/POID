@@ -39,7 +39,6 @@ function makeSession(capabilities: string[] = ["db.sql", "db.docs"]): ReaderSess
     slots: [],
     currentSlot: "",
     quotaBytes: 64 * 1024 * 1024,
-    connections: new Map(),
   };
 }
 

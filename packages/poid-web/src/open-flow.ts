@@ -14,7 +14,6 @@ import {
   hostFacts,
   IdbSqlPersistence,
   IndexedDbEngine,
-  loopbackConnection,
   makeSqlHandlers,
   mountReader,
   parseMigrations,
@@ -26,6 +25,7 @@ import {
   seedFromStore,
   unsupportedProfileEngines,
 } from "@poid/host";
+import { renderBindingChoice } from "@poid/ui";
 import { VaultWasmEngine } from "./vault-engine.js";
 import { isContainerError, loadPoidWasm, type WebPoidHandle } from "./wasm-api.js";
 import { BlobRewriteOrigin } from "./web-origin.js";
@@ -183,31 +183,25 @@ export async function runContainer(
   // container's `data/database.sql` seeds a fresh scope then. A declined app
   // never reaches that first call, so it leaves no SQL trace.
   //
-  // In connection mode the same handlers are served by a loopback connection
-  // (M10.5): data is keyed by the app id, shared across every POID configured
-  // against it, not carried in the file. The application calls the identical
-  // API and cannot tell the difference.
+  // A connection-mode POID keeps its data here instead. This reader has no OS
+  // credential store, so SPEC §7.2.2 forbids it from offering a credentialed
+  // connection at all — the conformant answer is to say so and store locally,
+  // not to keep the user's database password somewhere weaker where they would
+  // never think to look for it. The prompt below tells them plainly.
   const sqlWasm = { wasmUrl: new URL("wasm/wa-sqlite.wasm", document.baseURI).href };
   const sqlPersistence = await IdbSqlPersistence.open(SQL_DB);
-  const sql =
-    facts.storageMode === "connection"
-      ? loopbackConnection({
-          connectionId: facts.appId,
-          wasm: sqlWasm,
-          persistence: sqlPersistence,
-        })
-      : makeSqlHandlers({
-          wasm: sqlWasm,
-          persistence: sqlPersistence,
-          seedSql:
-            facts.storageMode === "embedded" && !facts.protectedData
-              ? (poid.sqlData() ?? undefined)
-              : undefined,
-          // Update-in-place migrations (SPEC §12): a database below the app's
-          // current schema is bridged up on open.
-          schemaVersion: facts.schemaVersion,
-          migrations: parseMigrations(files),
-        });
+  const sql = makeSqlHandlers({
+    wasm: sqlWasm,
+    persistence: sqlPersistence,
+    seedSql:
+      facts.storageMode === "embedded" && !facts.protectedData
+        ? (poid.sqlData() ?? undefined)
+        : undefined,
+    // Update-in-place migrations (SPEC §12): a database below the app's
+    // current schema is bridged up on open.
+    schemaVersion: facts.schemaVersion,
+    migrations: parseMigrations(files),
+  });
 
   // Serve the app + subresources as blob URLs (SPEC §5.2.1) so a multi-file
   // app's `<script src>` runs — works offline and from file://, unlike a
@@ -230,6 +224,24 @@ export async function runContainer(
     handlers: { sql: sql.sql, docs: sql.docs },
     quotaBytes: facts.quotaMb === null ? undefined : facts.quotaMb * 1024 * 1024,
     origin,
+    // After consent, before the application exists (SPEC §7.2.3). The user is
+    // told what this reader cannot do rather than left to discover it.
+    prepare:
+      facts.storageMode === "connection"
+        ? () =>
+            new Promise((resolve) => {
+              renderBindingChoice(
+                container,
+                {
+                  appName: facts.name,
+                  need: facts.requires?.kind ?? "sql",
+                  canConnect: false,
+                  candidates: [],
+                },
+                { onChoose: () => resolve({ storageBadge: "local (this browser)" }) },
+              );
+            })
+        : undefined,
   });
 
   const ran = handle.chrome !== undefined;

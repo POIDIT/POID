@@ -28,7 +28,8 @@ grants them.
 |---|---|
 | `crates/poid-core` | container logic: read / write / validate `.poid` (Rust) |
 | `crates/poid-vault` | Automerge CRDT storage, slots, instance identity (Rust) |
-| `crates/poid-broker` | permission enforcement, Data Engine, Connections (Rust) |
+| `crates/poid-broker` | permission, Connection and network policy — pure logic, no IO (Rust) |
+| `crates/poid-connections` | OS keychain, connection registry, brokered HTTP, Postgres (Rust) |
 | `crates/poid-cli` | the `poid` command-line tool (Rust) |
 | `packages/poid-sdk` | the `window.poid` API injected into the sandbox (TS) |
 | `packages/poid-host` | host side of the postMessage bridge (TS) |
@@ -39,7 +40,6 @@ grants them.
 | `apps/cloud` | POID Cloud — Cloudflare Workers services |
 | `apps/mcp-server` | MCP server so AI agents can emit `.poid` files |
 | `spec/` | the format specification, JSON Schema, conformance suite |
-| `docs/` | spec + architecture + security + runtime API (working copies) |
 | `examples/` | example POIDs (notepad, kanban, survey, …) |
 
 ## How to build
@@ -56,12 +56,13 @@ pnpm install && pnpm build && pnpm test
 
 ## Documentation
 
-- [docs/SPEC.md](docs/SPEC.md) — the POID format specification (normative)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the software that implements it
-- [docs/SECURITY.md](docs/SECURITY.md) — threat model and security requirements
-- [docs/RUNTIME-API.md](docs/RUNTIME-API.md) — the `window.poid` API surface
+- [spec/SPEC.md](spec/SPEC.md) — the POID format specification (normative)
+- [spec/ARCHITECTURE.md](spec/ARCHITECTURE.md) — the software that implements it
+- [spec/SECURITY.md](spec/SECURITY.md) — threat model and security requirements
+- [spec/RUNTIME-API.md](spec/RUNTIME-API.md) — the `window.poid` API surface
 - [CONVENTIONS.md](CONVENTIONS.md) — engineering conventions
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute
+- [KNOWN-GAPS.md](KNOWN-GAPS.md) — what is unfinished, and what is finished but unverified
 
 ## License
 

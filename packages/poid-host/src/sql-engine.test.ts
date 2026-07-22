@@ -497,7 +497,6 @@ describe("broker handler", () => {
       slots: [],
       currentSlot: "",
       quotaBytes: 64 * 1024 * 1024,
-      connections: new Map(),
     };
   }
 

@@ -150,9 +150,9 @@ Implementations **MUST** enforce a decompression ratio limit (RECOMMENDED: 100:1
     "protected": false,                   // true = data encrypted at rest (§9.2)
     "quota_mb": 64,                       // OPTIONAL, requested quota
     "schema_version": 0,                  // OPTIONAL, SQL schema version (§12)
-    "requires": {                         // REQUIRED if mode = "connection"
+    "requires": {                         // REQUIRED if mode = "connection" (§7.2)
       "kind": "sql",                      // "kv" | "sql" | "docs" | "files"
-      "hint": "supabase"                  // OPTIONAL, suggested provider
+      "hint": "supabase"                  // OPTIONAL, informative only; never selects a provider
     }
   },
 
@@ -356,7 +356,7 @@ This repository's reference instance is `engines/pyodide.json`; `scripts/fetch-p
 |---|---|---|---|---|
 | `embedded` | `data/` inside the container | Copying the file copies the data | via file sync (Drive, Dropbox) | Send the file → recipient sees data |
 | `vault` | Reader's managed store, keyed by `instance.id` | Copies are detected (§6.3) | via CRDT sync (§6.5) | Send the file → recipient sees **no** data |
-| `connection` | External backend the user configured | N/A | native to the backend | Data never travels with the file |
+| `connection` | External backend the user configured (§7.2) | N/A | native to the backend | Data never travels with the file |
 
 `embedded` is the **default** and is **RECOMMENDED** for documents intended to be shared.
 
@@ -417,7 +417,141 @@ Applications interact with the outside world **only** through the `poid.*` API, 
 
 This property applies uniformly to databases, sync, AI model keys, and MCP servers.
 
+A credential **MUST NOT** be materialised in any browser-engine context, including
+the reader's **own** UI context — not only the sandbox. A conformant reader holds
+credentials exclusively in the process that performs the privileged operation
+(Core), and the reader's web context sends an operation and receives a result.
+
+> **Rationale, and an amendment (M11).** Through M10 this clause said only "never
+> the sandboxed context", and the reference implementation accordingly kept
+> connection secrets in the Reader window's JavaScript heap. That satisfies the
+> letter of the rule and not its purpose: the Reader window is the same
+> browser-engine process that hosts the application's iframe, so every future
+> sandbox-escape or renderer bug becomes a credential-disclosure bug as well. The
+> boundary that is cheap to hold is the process boundary, so the rule now names
+> it. Recorded here per CONVENTIONS ("the spec and the code must never quietly
+> diverge").
+
 See `RUNTIME-API.md` for the complete API surface.
+
+### 7.2 Connections — normative
+
+A **Connection** is a named binding to an external backend, configured once by
+the user and held by the reader. Connections are what make `poid.db.sql`,
+`poid.net`, `poid.ai` and `poid.mcp` reach the outside world without the
+application ever holding a secret.
+
+**A manifest declares a need; it never names a provider.** There is no manifest
+field that identifies a connection, and a reader **MUST NOT** accept one from
+the application at runtime. Which backend answers is the user's decision,
+recorded by the reader.
+
+#### 7.2.1 Kinds
+
+Two distinct axes use the word *kind*, and they are not the same set:
+
+| Axis | Where | Values | Answers |
+|---|---|---|---|
+| `connection.kind` | reader configuration | `kv` `sql` `docs` `files` `ai` `mcp` `net` `sync` | *What can this backend do?* |
+| `storage.requires.kind` | manifest (§3.1) | `kv` `sql` `docs` `files` | *What does this application need in order to store its data?* |
+
+`storage.requires.kind` is deliberately the storage-serving subset: an
+application may declare that it needs a place to put data, and **MUST NOT** be
+able to declare that it needs a model provider or an MCP server. Those are
+requested through `permissions` (§3.1) and granted per §9.1.
+
+A connection **satisfies** a storage requirement when its kind is in the
+requirement's satisfying set:
+
+| `storage.requires.kind` | Satisfied by `connection.kind` |
+|---|---|
+| `kv` | `kv`, `sql` |
+| `sql` | `sql` |
+| `docs` | `docs`, `sql` |
+| `files` | `files` |
+
+`sql` satisfies `kv` and `docs` because both tiers are layerable over a
+relational backend — which is how the reference implementation already serves
+`poid.db.docs` locally (§8). The reverse does not hold: a key-value backend
+cannot answer `poid.db.sql`.
+
+#### 7.2.2 Where a credential lives — normative
+
+1. A credential **MUST** be stored in the operating system's credential store
+   (Windows Credential Manager, macOS Keychain, Linux libsecret or equivalent).
+2. A credential **MUST NOT** be written to a configuration file, a container, a
+   log, a crash report, or telemetry of any kind.
+3. A credential **MUST NOT** be placed in a URL, including as a query parameter.
+4. Connection **metadata** (id, kind, user-chosen label, the origins the
+   connection covers) is not a credential and **MAY** be stored in ordinary
+   configuration. A reader **MUST NOT** infer that metadata is therefore safe to
+   pass into the sandbox: §7.2.4 governs what crosses the boundary.
+
+A reader that cannot satisfy (1) — for example a reader running in a web browser,
+which has no OS credential store and no process separation to hold one behind —
+**MUST NOT** offer credentialed connections at all. It **MUST** say so plainly
+and offer local storage instead. Degrading to a weaker secret store (browser
+storage, an in-page variable) is **not** a conformant fallback.
+
+#### 7.2.3 Binding
+
+When `storage.mode = "connection"`, the reader resolves the manifest's
+`storage.requires` against the user's configured connections **after** consent
+(§9.1) and **before** the application's first storage call:
+
+1. If one or more configured connections satisfy the requirement, the reader
+   **MUST** present the choice to the user and **MUST NOT** choose silently.
+2. The user **MUST** be able to decline every connection and keep the data
+   local. A reader that only offers "connect or do not run" fails this clause.
+3. The choice is recorded per `app.id` + `instance.id` (§3.2) and is revocable.
+4. If the user declines and the application then calls a storage method that
+   only a connection can serve, the call **MUST** reject with
+   `CONNECTION_REQUIRED` (`RUNTIME-API.md` §9).
+
+The prompt is drawn by the reader, outside the sandbox, under the same rules as
+the consent screen (§9.1): the application cannot style, cover, suppress, or
+pre-answer it.
+
+#### 7.2.4 What crosses the boundary
+
+Only results cross. Specifically, a reader **MUST NOT** allow any of the
+following to reach the application:
+
+- a credential, in a result, an error message, an error `code`, a stack trace, or
+  a rejected promise's contents;
+- a connection's secret-bearing configuration, such as a database connection
+  string or an endpoint URL carrying an embedded token;
+- the identity of the chosen connection, unless the user has consented to
+  disclose it. `poid.app.info()` reports `storageMode`, never *which* backend.
+
+Error text originating from a backend **MUST** be scrubbed before it crosses:
+mapped to a `RUNTIME-API.md` §9 code, with backend detail dropped rather than
+forwarded. A backend that echoes a credential inside an error message is a
+realistic occurrence, not a hypothetical one, and the boundary is the place to
+stop it.
+
+#### 7.2.5 Network access
+
+`poid.net` is brokered (`RUNTIME-API.md` §4). In addition to the CSP and
+allowlist requirements of §5.2 and §9.1, a conformant reader **MUST**:
+
+1. Reject any request whose origin is not in `permissions.network` **and**
+   user-approved, before the request is issued.
+2. Strip any `Authorization` header supplied by the application, and inject a
+   credential only when the request's origin maps to a Connection.
+3. Resolve the destination itself and **validate every resolved address**,
+   rejecting loopback, private, link-local, unique-local, carrier-grade-NAT,
+   multicast and broadcast ranges, and their IPv4-mapped IPv6 forms, unless
+   enterprise policy (§13) explicitly permits them.
+4. Connect to a **validated address**, not merely to the hostname it validated.
+5. Re-apply clauses 1–4 to **every redirect hop**.
+
+> **Why clauses 3–5 are stated separately.** Checking the hostname and then
+> handing the name to a normal HTTP client is defeated by DNS rebinding: the name
+> resolves to a public address when checked and to `169.254.169.254` when
+> connected. The check and the connection must agree on the address, so the
+> requirement is written in terms of addresses rather than names. Without this,
+> `permissions.network` protects the user's browsing and not the user's LAN.
 
 ---
 
@@ -430,7 +564,12 @@ Key-value storage is insufficient for real applications. Conformant readers **MU
 | `poid.db.kv` | vault / `data/store.json` | simple key-value |
 | `poid.db.sql` | wa-sqlite (WASM) or PGlite | relational queries |
 | `poid.db.docs` | document store over SQLite | collections, Mongo-like queries |
-| `poid.db.remote` | external, via a Connection | user-configured backend |
+| `poid.db.remote` | external, via a Connection (§7.2) | user-configured backend |
+
+When `storage.mode = "connection"`, the `kv`, `sql` and `docs` tiers are served
+by the bound Connection instead of the local store, with identical semantics.
+The application calls the same API and **MUST NOT** be able to determine which
+backend answered (§7.2.4).
 
 Applications target the **POID Data Engine**, not MongoDB or PostgreSQL directly. Porting an existing application means rewriting its data layer against this API. This is a **port**, not a one-click conversion.
 

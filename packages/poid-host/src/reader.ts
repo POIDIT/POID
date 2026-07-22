@@ -13,7 +13,7 @@
 import type { Capability } from "@poid/sdk";
 import { type ChromeHandle, type ConsentManifest, renderChrome, renderConsent } from "@poid/ui";
 import { SandboxBridge } from "./bridge.js";
-import { Broker, type BrokerHandlers, type Connection, type ReaderSession } from "./broker.js";
+import { Broker, type BrokerHandlers, type Diagnostic, type ReaderSession } from "./broker.js";
 import { ContainerServer } from "./container-server.js";
 import { SANDBOX_TOKENS } from "./csp.js";
 import { type DataEngine, InMemoryEngine } from "./engine.js";
@@ -41,8 +41,26 @@ export interface MountOptions {
   sdkSource: string;
   /** Optional side-effecting handlers (net/ai/mcp/ui/files/export/sql). */
   handlers?: BrokerHandlers;
-  /** User-configured connections (secrets held here, never exposed). */
-  connections?: Map<string, Connection>;
+  /**
+   * Where the real reason for a refusal goes. The application receives only a
+   * §9 code, so without this the detail is discarded — route it to the log the
+   * *user* can read (SPEC §7.2.4).
+   */
+  onDiagnostic?: (entry: Diagnostic) => void;
+  /**
+   * Runs after consent and before the application exists.
+   *
+   * This is where the Connection binding happens (SPEC §7.2.3): the reader
+   * cannot know which backend serves the document until the user has consented
+   * to run it at all, and must know before the first storage call. Whatever it
+   * returns is merged over the static options — so the binding decides *which
+   * handlers get installed*, which is how the reader expresses a binding
+   * without ever telling the broker (and therefore without the application
+   * being able to learn it).
+   *
+   * Returning an empty object leaves the static options untouched.
+   */
+  prepare?: () => Promise<PreparedMount>;
   /** Storage backend; defaults to in-memory. */
   engine?: DataEngine;
   /** Per-POID quota in bytes; defaults to 64 MB (SPEC `storage.quota_mb`). */
@@ -56,6 +74,21 @@ export interface MountOptions {
   origin?: SyntheticOrigin;
   /** Watchdog tuning (short intervals in tests). */
   watchdog?: WatchdogOptions;
+}
+
+/** What {@link MountOptions.prepare} may decide once consent is given. */
+export interface PreparedMount {
+  /** Handlers to use instead of the static ones (the bound backend). */
+  handlers?: BrokerHandlers;
+  /**
+   * What the chrome's storage badge should say.
+   *
+   * The manifest's `storage.mode` is what the application *asked for*; after
+   * binding, this is what it actually got. A POID that declared `connection`
+   * and whose user kept the data local must not display "connection" — the
+   * badge is the user's own record of where their data went.
+   */
+  storageBadge?: string;
 }
 
 /** A live reader window handle. */
@@ -86,8 +119,18 @@ export function mountReader(options: MountOptions): Promise<ReaderHandle> {
 
 async function run(options: MountOptions, handle: ReaderHandle): Promise<ReaderHandle> {
   const doc = options.container.ownerDocument;
+
+  // Consent has been given; the application still does not exist. This is the
+  // only window in which the binding question can be asked (SPEC §7.2.3):
+  // after the user agreed to run this program at all, before anything of it
+  // has been loaded that could interfere with the asking.
+  const prepared = (await options.prepare?.()) ?? {};
+
   const engine = options.engine ?? new InMemoryEngine();
-  const broker = new Broker(engine, { handlers: options.handlers });
+  const broker = new Broker(engine, {
+    handlers: prepared.handlers ?? options.handlers,
+    onDiagnostic: options.onDiagnostic,
+  });
   const bridge = new SandboxBridge(broker);
   bridge.attach(
     doc.defaultView as unknown as {
@@ -110,14 +153,18 @@ async function run(options: MountOptions, handle: ReaderHandle): Promise<ReaderH
     slots: options.slotNames ?? [],
     currentSlot: options.currentSlot ?? "",
     quotaBytes: options.quotaBytes ?? 64 * 1024 * 1024,
-    connections: options.connections ?? new Map(),
   };
   broker.register(sessionId, session);
 
   // Chrome first (host DOM), then the sandboxed iframe.
   const chrome = renderChrome(
     options.container,
-    { title: options.manifest.name, storageMode: options.manifest.storageMode },
+    {
+      title: options.manifest.name,
+      // What the data placement actually resolved to, not what the manifest
+      // requested — see PreparedMount.storageBadge.
+      storageMode: prepared.storageBadge ?? options.manifest.storageMode,
+    },
     () => handle.stop(),
   );
   handle.chrome = chrome;

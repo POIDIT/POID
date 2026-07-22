@@ -53,7 +53,9 @@ A malicious POID, delivered by email, download, or a compromised registry. Assum
 | Read another slot | Slot switching is a reader operation; the app cannot request a slot |
 | Read the host filesystem | No path-based FS API exists. Only `poid.files.open()` → native dialog → user picks |
 | Spawn a process | No API exists. MCP `stdio` transport is unavailable to applications |
-| SSRF into the user's LAN | Network allowlist is origin-scoped; broker blocks private ranges unless explicitly policy-allowed |
+| SSRF into the user's LAN | Network allowlist is origin-scoped; the broker resolves the name itself, rejects private/loopback/link-local/CGNAT ranges, and connects to the address it validated (SPEC §7.2.5) |
+| DNS rebinding past the allowlist | The validated address, not the hostname, is what gets connected to; every redirect hop is re-validated |
+| Steal a credential from the reader's own UI process | Credentials live only in Core, never in any browser-engine context (SPEC §7.1) |
 | Exhaust CPU / RAM / disk | Watchdog, quota, visible "Stop this application" control |
 | Consent fatigue / dark patterns | Consent screen is reader-drawn, outside the sandbox. The app cannot style, cover, or fake it |
 | Tamper after signing | `integrity` hashes + optional Ed25519 signature. Any content change re-triggers consent |
@@ -81,11 +83,32 @@ poid.db.sql(q)  ──postMessage──►  IPC  ──►  BROKER
 **Normative invariants:**
 
 1. The sandbox **never** receives a credential — not in a response, not in an error, not in a stack trace.
-2. The broker **never** trusts a parameter that identifies scope (`instanceId`, `slot`, `connectionId`). It derives scope from the window that sent the message.
-3. Every broker entry point is fail-closed: unknown method → reject.
-4. Broker code is the smallest, most-reviewed, most-tested code in the repository.
+2. No browser-engine context receives a credential, **including the reader's own UI**. Credentials live in Core; the web context sends an operation and receives a result (SPEC §7.1).
+3. The broker **never** trusts a parameter that identifies scope (`instanceId`, `slot`, `connectionId`). It derives scope from the window that sent the message.
+4. Every broker entry point is fail-closed: unknown method → reject.
+5. Broker code is the smallest, most-reviewed, most-tested code in the repository.
 
 > Any pull request touching `crates/poid-broker/` requires explicit security review. Put this in `CONTRIBUTING.md` and mean it.
+
+### 4.1 Connections
+
+A Connection is the mechanism behind invariants 1 and 2 (SPEC §7.2). Three
+properties make it defensible, and each is worth stating as something to test
+rather than something to assume:
+
+- **The application cannot name a connection.** Not in the manifest, not at
+  runtime. It declares a *need*; the user picks the provider. An application
+  that could name a provider could point the user's data at the attacker's.
+- **The credential is attached after the message has crossed the boundary**, on
+  the far side, by code the container cannot reach.
+- **The invariant is enforced by the type system where possible.** In this
+  repository the reader's session type carries a connection *reference* with no
+  secret field at all, so "the reader leaked a credential" is a compile error
+  rather than a review finding. Prefer this to vigilance.
+
+An implementation claiming conformance should be able to point at a test that
+searches the sandbox context — and the host context — for a configured
+credential and fails if it is found.
 
 ---
 
@@ -153,6 +176,10 @@ Reject any change that:
 
 - introduces native code execution from a container
 - passes a credential into the sandbox
+- materialises a credential in any browser-engine context, including the reader's own UI
+- lets an application name, choose, or influence which Connection serves it
+- issues an outbound request without validating the resolved address, or validates a hostname and then connects by name
+- forwards backend error text to the application without scrubbing it
 - widens CSP without an explicit, user-granted manifest declaration
 - lets an application choose its own storage scope
 - lets an application suppress, style, or bypass the consent screen

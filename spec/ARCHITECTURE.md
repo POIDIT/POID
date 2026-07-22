@@ -83,7 +83,8 @@ poid/
 ├── crates/                       # Rust
 │   ├── poid-core/                # container, manifest, validation, integrity
 │   ├── poid-vault/               # Automerge storage, slots, instance identity
-│   ├── poid-broker/              # permission enforcement, Data Engine, Connections
+│   ├── poid-broker/              # permission, Connection and network policy (pure, no IO)
+│   ├── poid-connections/         # OS keychain, registry, brokered HTTP, Postgres
 │   └── poid-cli/                 # `poid` command-line tool
 │
 ├── packages/                     # TypeScript

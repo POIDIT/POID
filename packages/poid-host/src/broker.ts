@@ -7,13 +7,18 @@
  *    and ignored here — a malicious app cannot address another POID's data.
  * 2. **Fail closed.** Unknown method or field → reject (in the guard).
  *    Ungranted capability → `PERMISSION_DENIED`.
- * 3. **No credential ever crosses the boundary**, in a result or an error.
- *    Errors are scrubbed to §9 codes and known secrets are redacted.
- * 4. **Every call is rate-limited and quota-checked.**
+ * 3. **No credential ever crosses the boundary**, in a result or an error —
+ *    and, since M11, no credential is on this side of it either. The broker
+ *    holds no secret and has no connection field to hold one in (SPEC §7.1).
+ * 4. **Text that crosses is reader-authored.** A failure carries a §9 code and
+ *    a constant string; the real reason goes to the host's diagnostics. Text
+ *    assembled from a backend's response can carry a credential, and text that
+ *    cannot vary cannot carry anything (SPEC §7.2.4).
+ * 5. **Every call is rate-limited and quota-checked.**
  *
- * In M04 the storage backend is in-memory and network/AI/MCP are injectable
- * handlers; a later milestone forwards these to Rust Core over IPC. The
- * boundary logic here does not change when that happens.
+ * The storage backend and the network/AI/MCP handlers are injected, so this
+ * file is the same whether they are in-memory test doubles or IPC calls into
+ * Rust Core. The boundary logic does not change when the backend does.
  */
 
 import {
@@ -28,16 +33,22 @@ import {
 import type { DataEngine, Scope } from "./engine.js";
 import { guardRequest } from "./guard.js";
 
-/** A user-configured backend binding. The `secret` is held by the reader and
- * **never** leaves it (SPEC §7.1). */
-export interface Connection {
-  id: string;
-  kind: "sql" | "net" | "ai" | "mcp";
-  secret: string;
-}
-
-/** Everything the broker knows about one open POID window. Assembled by the
- * host from the container + user consent; the app cannot alter it. */
+/**
+ * Everything the broker knows about one open POID window. Assembled by the
+ * host from the container + user consent; the app cannot alter it.
+ *
+ * **There is no connection here, and no credential.** Through M10 this carried
+ * a `connections: Map<string, Connection>` whose entries held a `secret`,
+ * which meant every configured credential sat in the Reader window's
+ * JavaScript heap — the same browser-engine process that hosts the
+ * application's iframe. SPEC §7.1 now forbids that, so the field is gone: the
+ * broker authorises an operation and Core performs it with the credential
+ * attached on the far side.
+ *
+ * Which connection serves a window is likewise absent, because the application
+ * must not be able to find out (SPEC §7.2.4). The reader expresses the binding
+ * by choosing *which handlers it installs*, not by telling the broker.
+ */
 export interface ReaderSession {
   instanceId: string;
   appInfo: Omit<AppInfoDescriptor, "instanceId" | "slot">;
@@ -46,7 +57,6 @@ export interface ReaderSession {
   /** Reader-controlled active slot. The application cannot change this. */
   currentSlot: string;
   quotaBytes: number;
-  connections: Map<string, Connection>;
 }
 
 /** Side-effecting backends the broker calls once a request is authorised.
@@ -79,19 +89,59 @@ interface RateLimit {
   refillPerSec: number;
 }
 
+/** A refusal, as the host may record it for the user. */
+export interface Diagnostic {
+  method: Method | null;
+  code: string;
+  /** The real reason, which does **not** cross to the application. */
+  detail: string;
+}
+
 interface BrokerOptions {
   handlers?: BrokerHandlers;
   rateLimit?: RateLimit;
   now?: () => number;
+  /**
+   * Where the detail of a refusal goes, since it no longer crosses the
+   * boundary. Studio routes this to the log the *user* can read — a person
+   * debugging their own database deserves the real message, and the
+   * application does not (SPEC §7.2.4).
+   */
+  onDiagnostic?: (entry: Diagnostic) => void;
 }
+
+/**
+ * What an application is told, per error code.
+ *
+ * Every value is a constant. That is the mechanism, not the styling: text
+ * assembled from a backend's response can carry a credential, and text that
+ * cannot vary cannot carry anything. The code is the contract
+ * (`RUNTIME-API.md` §9); the detail goes to {@link Diagnostic} instead.
+ */
+const INTERNAL_MESSAGE = "something went wrong inside the reader";
+
+const ERROR_MESSAGE: Record<string, string> = {
+  PERMISSION_DENIED: "this application has not been granted that",
+  QUOTA_EXCEEDED: "this application has used all the space it is allowed",
+  NOT_AVAILABLE: "this reader cannot do that",
+  CONNECTION_REQUIRED: "this application needs a connection that is not set up",
+  INVALID_ARGUMENT: "the request was not valid",
+  INTERNAL: INTERNAL_MESSAGE,
+};
 
 interface Bucket {
   tokens: number;
   last: number;
 }
 
-/** A generic reader-side failure that carries a safe §9 code. Handlers throw
- * this; anything else becomes a scrubbed `INTERNAL`. */
+/**
+ * A reader-side failure carrying a §9 code. Handlers throw this; anything else
+ * becomes an `INTERNAL`.
+ *
+ * The `message` is **host-side only**. It reaches {@link Diagnostic} and never
+ * the application, so a handler may put the real reason in it — including
+ * whatever a backend said — without that becoming a disclosure.
+ */
 export class BrokerError extends Error {
   constructor(
     readonly code:
@@ -115,14 +165,14 @@ export class Broker {
   private readonly now: () => number;
   private readonly sessions = new Map<string, ReaderSession>();
   private readonly buckets = new Map<string, Bucket>();
-  /** Every secret the broker knows, redacted from any outgoing text. */
-  private readonly secrets = new Set<string>();
+  private readonly onDiagnostic: ((entry: Diagnostic) => void) | undefined;
 
   constructor(engine: DataEngine, options: BrokerOptions = {}) {
     this.engine = engine;
     this.handlers = options.handlers ?? {};
     this.rateLimit = options.rateLimit ?? { capacity: 120, refillPerSec: 60 };
     this.now = options.now ?? (() => Date.now());
+    this.onDiagnostic = options.onDiagnostic;
   }
 
   /** Registers a window's session. `sessionId` is opaque and assigned by the
@@ -130,9 +180,6 @@ export class Broker {
   register(sessionId: string, session: ReaderSession): void {
     this.sessions.set(sessionId, session);
     this.buckets.set(sessionId, { tokens: this.rateLimit.capacity, last: this.now() });
-    for (const conn of session.connections.values()) {
-      if (conn.secret) this.secrets.add(conn.secret);
-    }
   }
 
   /** Drops a window's session (on close). */
@@ -160,27 +207,30 @@ export class Broker {
 
     const guarded = guardRequest(raw);
     if (!guarded.ok) {
-      return guarded.id === null ? null : this.fail(guarded.id, guarded.code, guarded.message);
+      return guarded.id === null
+        ? null
+        : this.fail(guarded.id, guarded.code, null, guarded.message);
     }
     const { id, method, params } = guarded;
 
     if (!this.spend(sessionId)) {
-      return this.fail(id, "QUOTA_EXCEEDED", "call rate limit exceeded");
+      return this.fail(id, "QUOTA_EXCEEDED", method, "call rate limit exceeded");
     }
 
     const capability = METHOD_CAPABILITY[method];
     if (!session.capabilities.has(capability)) {
-      return this.fail(id, "PERMISSION_DENIED", `capability \`${capability}\` not granted`);
+      return this.fail(id, "PERMISSION_DENIED", method, `capability \`${capability}\` not granted`);
     }
 
     try {
       const result = await this.dispatch(session, method, params);
       return { poid: PROTOCOL, id, ok: true, result };
     } catch (err) {
-      if (err instanceof BrokerError) return this.fail(id, err.code, err.message);
-      // Never surface an unexpected error's text: it may name host paths or
-      // internals. Collapse to a generic INTERNAL.
-      return this.fail(id, "INTERNAL", "internal reader error");
+      // A handler's own text stays on this side of the boundary: it may quote
+      // a backend, and a backend may quote its connection string. The code
+      // crosses, the reason goes to the host's diagnostics (SPEC §7.2.4).
+      if (err instanceof BrokerError) return this.fail(id, err.code, method, err.message);
+      return this.fail(id, "INTERNAL", method, err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -326,18 +376,23 @@ export class Broker {
     }
   }
 
-  private fail(id: number, code: string, message: string): FailureMessage {
-    return { poid: PROTOCOL, id, ok: false, error: { code, message: this.redact(message) } };
-  }
-
-  /** Defense in depth: strip any known secret from outgoing text, so a message
-   * can never leak a credential even if a handler mishandles one. */
-  private redact(message: string): string {
-    let out = message;
-    for (const secret of this.secrets) {
-      if (secret.length >= 4 && out.includes(secret)) out = out.split(secret).join("***");
-    }
-    return out;
+  /**
+   * Builds the refusal that crosses to the application, and routes the real
+   * reason to the host instead.
+   *
+   * `detail` never appears in the returned message. There is no argument that
+   * would make it, which is the point: the only way to leak a backend's text
+   * from here would be to change this function, and that is a change a
+   * reviewer will see.
+   */
+  private fail(id: number, code: string, method: Method | null, detail: string): FailureMessage {
+    this.onDiagnostic?.({ method, code, detail });
+    return {
+      poid: PROTOCOL,
+      id,
+      ok: false,
+      error: { code, message: ERROR_MESSAGE[code] ?? INTERNAL_MESSAGE },
+    };
   }
 }
 

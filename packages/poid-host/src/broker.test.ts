@@ -1,6 +1,12 @@
 import type { Capability } from "@poid/sdk";
 import { describe, expect, it } from "vitest";
-import { Broker, type BrokerHandlers, type Connection, type ReaderSession } from "./broker.js";
+import {
+  Broker,
+  BrokerError,
+  type BrokerHandlers,
+  type Diagnostic,
+  type ReaderSession,
+} from "./broker.js";
 import { InMemoryEngine } from "./engine.js";
 
 function session(overrides: Partial<ReaderSession> = {}): ReaderSession {
@@ -19,7 +25,6 @@ function session(overrides: Partial<ReaderSession> = {}): ReaderSession {
     slots: overrides.slots ?? [],
     currentSlot: overrides.currentSlot ?? "",
     quotaBytes: overrides.quotaBytes ?? 64 * 1024 * 1024,
-    connections: overrides.connections ?? new Map(),
   };
 }
 
@@ -107,52 +112,95 @@ describe("fail closed", () => {
 describe("credentials never cross the boundary", () => {
   const secret = "sk-live-DEADBEEF-super-secret-key";
 
-  function withConnection(handlers: BrokerHandlers) {
-    const broker = new Broker(new InMemoryEngine(), { handlers });
-    const connections = new Map<string, Connection>([
-      ["conn-1", { id: "conn-1", kind: "net", secret }],
-    ]);
+  function netBroker(handlers: BrokerHandlers, onDiagnostic?: (e: Diagnostic) => void) {
+    const broker = new Broker(new InMemoryEngine(), { handlers, onDiagnostic });
     broker.register(
       "win",
-      session({
-        capabilities: new Set<Capability>(["app", "db.kv", "net", "ui", "export"]),
-        connections,
-      }),
+      session({ capabilities: new Set<Capability>(["app", "db.kv", "net", "ui", "export"]) }),
     );
     return broker;
   }
 
-  it("has no method that returns a connection secret", async () => {
-    // The net handler attaches the credential itself and returns only a
-    // response; the secret is never part of any result.
-    const broker = withConnection({
-      net: async (s) => {
-        const cred = [...s.connections.values()][0]?.secret;
-        expect(cred).toBe(secret); // the broker/handler can see it…
-        return { status: 200, statusText: "OK", headers: {}, body: "brokered" };
-      },
-    });
-    const res = await broker.handle("win", req(1, "net.fetch", { url: "https://api.test" }));
-    expect(JSON.stringify(res)).not.toContain(secret); // …but the app never does
-    expect(res).toMatchObject({ ok: true, result: { body: "brokered" } });
+  it("gives a session nowhere to put a credential", () => {
+    // Through M10 this object carried `connections`, whose entries had a
+    // `secret` — so every configured credential sat in the Reader window's
+    // JavaScript heap, the same process that hosts the application's iframe.
+    // The field is gone (SPEC §7.1). Serialising the whole session and
+    // checking its key set turns "we removed it" into something that stays
+    // removed: re-adding a secret-bearing field fails here.
+    const keys = Object.keys(session()).sort();
+    expect(keys).toEqual([
+      "appInfo",
+      "capabilities",
+      "currentSlot",
+      "instanceId",
+      "quotaBytes",
+      "slots",
+    ]);
+    expect(keys).not.toContain("connections");
   });
 
-  it("scrubs a secret out of an error message (defense in depth)", async () => {
-    const broker = withConnection({
-      net: async () => {
-        // A careless handler leaks the secret into an error string.
-        throw new Error(`upstream rejected token ${secret}`);
+  it("never forwards a handler's own text, even when it holds a credential", async () => {
+    const seen: Diagnostic[] = [];
+    const broker = netBroker(
+      {
+        net: async () => {
+          // Exactly what a backend does: quote what it was given, key and all.
+          throw new Error(`upstream rejected token ${secret}`);
+        },
       },
-    });
+      (entry) => seen.push(entry),
+    );
+
     const res = await broker.handle("win", req(1, "net.fetch", { url: "https://api.test" }));
-    // Unexpected errors collapse to INTERNAL, and any known secret is redacted.
+
+    // The application gets a code and a constant string. Nothing derived from
+    // the failure reaches it, so there is nothing for a credential to ride on.
     expect(res).toMatchObject({ ok: false, error: { code: "INTERNAL" } });
     expect(JSON.stringify(res)).not.toContain(secret);
+    expect(JSON.stringify(res)).not.toContain("upstream");
+
+    // The reason is not lost — it goes to the host, where the *user* can read
+    // it. The user is entitled to their own diagnostics; the app is not.
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.detail).toContain("upstream rejected token");
+  });
+
+  it("keeps a BrokerError's message on the host side too", async () => {
+    const seen: Diagnostic[] = [];
+    const broker = netBroker(
+      {
+        net: async () => {
+          throw new BrokerError("CONNECTION_REQUIRED", `no route to ${secret}@db.internal`);
+        },
+      },
+      (entry) => seen.push(entry),
+    );
+
+    const res = await broker.handle("win", req(1, "net.fetch", { url: "https://api.test" }));
+    // The code is the contract and does cross; the message never does, whether
+    // the throw was deliberate or not.
+    expect(res).toMatchObject({ ok: false, error: { code: "CONNECTION_REQUIRED" } });
+    expect(JSON.stringify(res)).not.toContain(secret);
+    expect(JSON.stringify(res)).not.toContain("db.internal");
+    expect(seen[0]?.detail).toContain("db.internal");
+  });
+
+  it("tells the application nothing about which backend answered", async () => {
+    const broker = netBroker({});
+    const res = await broker.handle("win", req(1, "app.info"));
+    // storageMode is public; the identity of the connection behind it is not
+    // (SPEC §7.2.4).
+    expect(res).toMatchObject({ ok: true });
+    const rendered = JSON.stringify(res);
+    expect(rendered).toContain("embedded");
+    expect(rendered).not.toContain("conn-");
+    expect(rendered).not.toContain("supabase");
   });
 
   it("drops an Authorization header the app tries to set", async () => {
     let sawAuth = true;
-    const broker = withConnection({
+    const broker = netBroker({
       net: async (_s, params) => {
         const init = params.init as { headers?: Record<string, string> };
         sawAuth = Object.keys(init.headers ?? {}).some((k) => k.toLowerCase() === "authorization");

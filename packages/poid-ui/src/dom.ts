@@ -12,7 +12,9 @@ import { type ConsentManifest, type ConsentModel, consentModel } from "./consent
 
 type El = HTMLElement;
 
-function el(doc: Document, tag: string, className?: string, text?: string): El {
+/** Creates an element. Exported so sibling host-drawn dialogs build their DOM
+ * the same way the consent screen does. */
+export function el(doc: Document, tag: string, className?: string, text?: string): El {
   const node = doc.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;

@@ -34,6 +34,15 @@ export interface ReaderManifestFacts {
   /** `storage.schema_version` — the SQL schema version the app expects
    * (SPEC §12); 0 when unset. Drives migrations on update-in-place. */
   schemaVersion: number;
+  /**
+   * `storage.requires` — what the application needs from a backend when
+   * `storage.mode = "connection"` (SPEC §3.1, §7.2.3). Absent otherwise.
+   *
+   * A *need*, never a provider: `hint` may order the choices the user is
+   * shown and must never select one, or the manifest would be picking the
+   * user's database.
+   */
+  requires?: { kind: "kv" | "sql" | "docs" | "files"; hint?: string };
   permissions: {
     network: string[];
     filesystem: "none" | "user-initiated";
@@ -113,6 +122,17 @@ export function extractFacts(manifestJson: string): ReaderManifestFacts {
     },
   };
   if (typeof app.author === "string") facts.author = app.author;
+
+  const requires = asRecord(storage.requires);
+  if (
+    requires.kind === "kv" ||
+    requires.kind === "sql" ||
+    requires.kind === "docs" ||
+    requires.kind === "files"
+  ) {
+    facts.requires = { kind: requires.kind };
+    if (typeof requires.hint === "string") facts.requires.hint = requires.hint;
+  }
 
   if (type === "data") {
     const ref = asRecord(m.data_ref);

@@ -1,0 +1,53 @@
+[package]
+name = "poid-connections"
+description = "POID Connections: OS keychain storage and the connection registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# An in-memory secret store for tests. NOT in `default`, so it is compiled out
+# of every release build (CONVENTIONS, security rule 5: no "just for
+# development" bypass — a feature flag that release does not enable).
+test-store = []
+
+[dependencies]
+poid-broker = { path = "../poid-broker" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror.workspace = true
+# `default` pulls the `v1` feature: Windows Credential Manager, macOS Keychain,
+# and Secret Service over zbus on Linux. zbus is pure Rust, so this still
+# builds on a CI runner with no D-Bus development headers installed.
+keyring = "4.1.5"
+# The brokered network path (SPEC §7.2.5). `default-features = false` drops
+# native-tls: rustls with the ring provider is pure Rust plus a vendored C
+# build, so a CI runner needs no OpenSSL development headers. Redirects are
+# handled by us, not by reqwest, because every hop has to be re-checked
+# against the allowlist and re-resolved.
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider",
+    "webpki-roots",
+    "charset",
+    "http2",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio = { version = "1", features = ["rt", "net", "time"] }
+# The `sql` connection kind speaks the Postgres wire protocol, so `poid.db.sql`
+# runs real SQL against a real database. Supabase is then a preset rather than
+# a bespoke integration — the same path serves Neon, RDS and a self-hosted
+# server.
+tokio-postgres = { version = "0.7", features = ["with-uuid-1", "with-serde_json-1"] }
+tokio-postgres-rustls = "0.14"
+webpki-roots = "1"
+bytes = "1"
+uuid = { version = "1", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "time"] }
