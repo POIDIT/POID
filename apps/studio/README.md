@@ -18,7 +18,13 @@ styling choice.
 - `src/hub/` — one file per hub tool. Each exports a `Panel` that renders its
   own markup into an empty container; `hub-main.ts` only decides which one is
   on screen. Adding a tool means adding it to that file's `PANELS` list, and
-  means no edit to `static/index.html`.
+  means no edit to `static/index.html`. Tools today: open (`home`), convert
+  (`convert`), connections (`connections`).
+- The converter (`src/hub/convert.ts` + `src-tauri/src/convert.rs`) runs the
+  shared `poid-convert` pipeline over IPC — the same conversion the CLI does.
+  The no-build path (a folder of ready-to-run files, or a single HTML page)
+  works today; a project that needs bundling is reported honestly and waits on
+  the esbuild-wasm runtime (`engines/esbuild.json`).
 - `e2e/` — the desktop test tier: Playwright driving the **built binary** over
   CDP. Windows only, and it will not start while a Studio is already running.
   See `e2e/README.md`.

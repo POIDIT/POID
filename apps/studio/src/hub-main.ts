@@ -12,13 +12,14 @@
  */
 
 import { connectionsPanel } from "./hub/connections.js";
+import { convertPanel } from "./hub/convert.js";
 import { el } from "./hub/dom.js";
 import { homePanel } from "./hub/home.js";
 import { hashForPanel, type Panel, panelIdFromHash, type Teardown } from "./hub/panels.js";
 
 /** Every tool in the hub, in the order the navigation lists them. The first
  * is what a fresh window shows. */
-const PANELS: readonly Panel[] = [homePanel, connectionsPanel];
+const PANELS: readonly Panel[] = [homePanel, convertPanel, connectionsPanel];
 
 function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);

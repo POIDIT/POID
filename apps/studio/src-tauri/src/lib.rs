@@ -15,6 +15,7 @@ mod cli;
 mod commands;
 mod connections;
 mod connections_state;
+mod convert;
 mod document;
 mod state;
 mod vault_state;
@@ -109,7 +110,9 @@ pub fn run() {
             connections::connection_bind,
             connections::open_hub,
             connections::net_fetch,
-            connections::connection_sql_exec
+            connections::connection_sql_exec,
+            convert::convert_to_poid,
+            convert::write_poid
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {

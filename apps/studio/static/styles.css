@@ -146,6 +146,58 @@ button:hover {
   font-weight: 600;
 }
 
+/* ---- Converter panel (M12.2) ---- */
+
+.convert__drop {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.convert__drop--over {
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.convert__hint {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.convert__sub {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--muted);
+}
+
+.convert__picks {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+/* The native file inputs are driven by the buttons above; never shown. */
+.convert__file {
+  display: none;
+}
+
+.convert__status {
+  margin-top: 1rem;
+  min-height: 1.4rem;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.convert__status--ok {
+  color: var(--accent);
+}
+
+.convert__status--error {
+  color: var(--danger);
+}
+
 /* ---- The Reader window: the document fills the window ---- */
 
 .reader-window {

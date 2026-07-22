@@ -3077,6 +3077,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "poid-convert"
+version = "0.0.1"
+dependencies = [
+ "poid-core",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "poid-core"
 version = "0.0.1"
 dependencies = [
@@ -3097,6 +3107,7 @@ dependencies = [
  "base64 0.22.1",
  "poid-broker",
  "poid-connections",
+ "poid-convert",
  "poid-core",
  "poid-vault",
  "serde",
