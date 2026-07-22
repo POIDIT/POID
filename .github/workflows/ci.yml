@@ -117,6 +117,13 @@ jobs:
         run: cargo clippy --manifest-path apps/studio/src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Build installers (unsigned; signing is a tracked follow-up)
         run: pnpm --filter @poid/studio exec tauri build
+      # Drives the binary `tauri build` just produced: real windows, real Rust
+      # backend. Windows only — WebView2 is Chromium and speaks CDP, while the
+      # WebKit webviews on macOS and Linux do not. No `playwright install`:
+      # the harness attaches to the application, it does not launch a browser.
+      - name: Desktop e2e (the real Studio, over CDP)
+        if: runner.os == 'Windows'
+        run: pnpm --filter @poid/studio e2e
       - uses: actions/upload-artifact@v4
         with:
           name: studio-${{ matrix.os }}

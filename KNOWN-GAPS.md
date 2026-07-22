@@ -108,13 +108,21 @@ needs only Node. This belongs in its own branch, not in a milestone PR.
 
 ### Nobody has run POID Studio with any of this
 
-The single most important gap. CONVENTIONS' Definition of Done includes *"the
-maintainer can run it and see the promised result"*, and that box is unticked
-for M11.
+The single most important gap at the end of M11. CONVENTIONS' Definition of
+Done includes *"the maintainer can run it and see the promised result"*, and
+that box was unticked.
 
-Everything is covered by unit, integration and end-to-end tests, but the e2e
-tier drives the **web** reader stack in Chromium — not the Tauri application.
-These paths have never executed in the running product:
+**Partly closed in M12.0.** `apps/studio/e2e/` now drives the built binary over
+CDP, and runs in CI on Windows. It proves that the application starts, that a
+bare launch opens the hub, that a double-clicked file opens a Reader window and
+never the hub, that nothing executes before consent, and that a container
+carrying machine code is refused with a visible explanation. That is the shell
+and the reader path — it is not M11.
+
+What the harness cannot reach yet: macOS and Linux, whose WebKit webviews have
+no CDP endpoint.
+
+These M11 paths have still never executed in the running product:
 
 - the connection manager in the hub (add, edit, delete, the missing-credential state)
 - the binding prompt in a real Reader window
