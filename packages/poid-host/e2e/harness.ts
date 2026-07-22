@@ -114,7 +114,71 @@ const HOSTILE_APPS: Record<string, string> = {
       }
     })();
   </script></body></html>`,
+
+  // A POID whose whole purpose is to steal the connection credential (M11.5,
+  // the milestone's Definition of Done). It sweeps every route a credential
+  // could plausibly take out of the sandbox and reports one string; the spec
+  // searches that string for the secret. The backend behind db.sql is rigged
+  // to fail with an error that quotes the connection string, so this exercises
+  // the realistic case rather than a hypothetical one.
+  thief: `<!doctype html><html><body><script type="module">
+    (async () => {
+      const harvest = [];
+      const capture = (label, value) => {
+        try { harvest.push(label + "=" + JSON.stringify(value)); }
+        catch (e) { harvest.push(label + "!" + String(e)); }
+      };
+
+      // 1. Identity: does app.info() name the backend behind storageMode?
+      try { capture("info", await poid.app.info()); }
+      catch (e) { capture("info-threw", String(e)); }
+
+      // 2. A deliberately failing query. The backend's own message is where a
+      //    connection string most often surfaces.
+      let sqlError = null;
+      try { await poid.db.sql.exec("SELECT * FROM definitely_not_a_table"); }
+      catch (e) {
+        sqlError = { name: e && e.name, code: e && e.code, message: String(e && e.message) };
+        capture("sql-error", sqlError);
+        capture("sql-stack", String((e && e.stack) || ""));
+        capture("sql-own", Object.getOwnPropertyNames(e || {}).map((k) => k + ":" + String(e[k])));
+      }
+
+      // 3. The bootstrap the host injected, and anything else on the globals.
+      try { capture("bootstrap", window.__POID_BOOTSTRAP__); } catch (e) { capture("bs", String(e)); }
+      try { capture("globals", Object.getOwnPropertyNames(globalThis).join(",")); }
+      catch (e) { capture("globals-threw", String(e)); }
+      try { capture("poid-shape", Object.keys(poid)); } catch (e) { capture("ps", String(e)); }
+
+      // 4. Anything reachable by walking the poid object one level deep.
+      try {
+        const deep = {};
+        for (const k of Object.keys(poid)) {
+          deep[k] = typeof poid[k] === "object" && poid[k] !== null ? Object.keys(poid[k]) : typeof poid[k];
+        }
+        capture("poid-deep", deep);
+      } catch (e) { capture("deep-threw", String(e)); }
+
+      // 5. The document the reader served us.
+      try { capture("own-html", document.documentElement.outerHTML.slice(0, 4000)); }
+      catch (e) { capture("html-threw", String(e)); }
+
+      parent.postMessage({
+        probe: "thief",
+        harvest: harvest.join("\\n"),
+        sqlError,
+      }, "*");
+    })();
+  </script></body></html>`,
 };
+
+/**
+ * The credential a connection would hold (M11.5). The harness plays the part
+ * of a backend that quotes its connection string in an error — which real
+ * drivers do — so the spec can prove the boundary stops it rather than
+ * trusting that no backend ever misbehaves.
+ */
+const CONNECTION_SECRET = "postgres://app:sup3rs3cret-pw@db.example.com:5432/appdb";
 
 interface Probe {
   probe: string;
@@ -126,6 +190,8 @@ window.addEventListener("message", (ev) => {
   const d = ev.data as { probe?: unknown };
   if (d && typeof d === "object" && typeof d.probe === "string") probes.push(d as Probe);
 });
+
+const diagnostics: { method: string | null; code: string; detail: string }[] = [];
 
 let current: ReaderHandle | undefined;
 let sqlHandlers: SqlHandlers | undefined;
@@ -190,6 +256,7 @@ const PoidHarness = {
     const instanceId = args.instanceId ?? "instance-hostile";
 
     sqlHandlers = undefined;
+    diagnostics.length = 0;
     void (async (): Promise<void> => {
       if (args.sqlDb) {
         sqlHandlers = makeSqlHandlers({
@@ -197,6 +264,18 @@ const PoidHarness = {
           persistence: await IdbSqlPersistence.open(args.sqlDb),
         });
       }
+      // A connection-backed SQL tier that fails the way a real driver does:
+      // by quoting what it was given. Only the boundary stands between this
+      // string and the application.
+      const leakySql = async (): Promise<never> => {
+        throw new Error(`FATAL: password authentication failed for "${CONNECTION_SECRET}"`);
+      };
+      const handlers = sqlHandlers
+        ? { sql: sqlHandlers.sql, docs: sqlHandlers.docs }
+        : args.kind === "thief"
+          ? { sql: leakySql, docs: leakySql }
+          : undefined;
+
       const handle = await mountReader({
         container: stage(),
         files,
@@ -205,7 +284,8 @@ const PoidHarness = {
         capabilities,
         sdkSource: __SDK_SOURCE__,
         watchdog: args.watchdog,
-        handlers: sqlHandlers ? { sql: sqlHandlers.sql, docs: sqlHandlers.docs } : undefined,
+        handlers,
+        onDiagnostic: (entry) => diagnostics.push(entry),
       });
       current = handle;
     })();
@@ -226,6 +306,14 @@ const PoidHarness = {
   },
   probes(): Probe[] {
     return probes;
+  },
+  /** The credential the rigged backend holds, so a spec can search for it. */
+  connectionSecret(): string {
+    return CONNECTION_SECRET;
+  },
+  /** Refusal details the broker routed to the host instead of the app. */
+  diagnostics(): { method: string | null; code: string; detail: string }[] {
+    return diagnostics;
   },
   hasConsent(): boolean {
     return !!document.querySelector(".poid-consent");

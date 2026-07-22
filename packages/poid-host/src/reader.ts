@@ -13,7 +13,7 @@
 import type { Capability } from "@poid/sdk";
 import { type ChromeHandle, type ConsentManifest, renderChrome, renderConsent } from "@poid/ui";
 import { SandboxBridge } from "./bridge.js";
-import { Broker, type BrokerHandlers, type Connection, type ReaderSession } from "./broker.js";
+import { Broker, type BrokerHandlers, type Diagnostic, type ReaderSession } from "./broker.js";
 import { ContainerServer } from "./container-server.js";
 import { SANDBOX_TOKENS } from "./csp.js";
 import { type DataEngine, InMemoryEngine } from "./engine.js";
@@ -41,8 +41,12 @@ export interface MountOptions {
   sdkSource: string;
   /** Optional side-effecting handlers (net/ai/mcp/ui/files/export/sql). */
   handlers?: BrokerHandlers;
-  /** User-configured connections (secrets held here, never exposed). */
-  connections?: Map<string, Connection>;
+  /**
+   * Where the real reason for a refusal goes. The application receives only a
+   * §9 code, so without this the detail is discarded — route it to the log the
+   * *user* can read (SPEC §7.2.4).
+   */
+  onDiagnostic?: (entry: Diagnostic) => void;
   /** Storage backend; defaults to in-memory. */
   engine?: DataEngine;
   /** Per-POID quota in bytes; defaults to 64 MB (SPEC `storage.quota_mb`). */
@@ -87,7 +91,10 @@ export function mountReader(options: MountOptions): Promise<ReaderHandle> {
 async function run(options: MountOptions, handle: ReaderHandle): Promise<ReaderHandle> {
   const doc = options.container.ownerDocument;
   const engine = options.engine ?? new InMemoryEngine();
-  const broker = new Broker(engine, { handlers: options.handlers });
+  const broker = new Broker(engine, {
+    handlers: options.handlers,
+    onDiagnostic: options.onDiagnostic,
+  });
   const bridge = new SandboxBridge(broker);
   bridge.attach(
     doc.defaultView as unknown as {
@@ -110,7 +117,6 @@ async function run(options: MountOptions, handle: ReaderHandle): Promise<ReaderH
     slots: options.slotNames ?? [],
     currentSlot: options.currentSlot ?? "",
     quotaBytes: options.quotaBytes ?? 64 * 1024 * 1024,
-    connections: options.connections ?? new Map(),
   };
   broker.register(sessionId, session);
 

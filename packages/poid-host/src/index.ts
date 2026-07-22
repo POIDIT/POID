@@ -13,7 +13,7 @@ export {
   Broker,
   BrokerError,
   type BrokerHandlers,
-  type Connection,
+  type Diagnostic,
   type ReaderSession,
 } from "./broker.js";
 export { capabilitiesFromGrant, type Grant, type ManifestFacts } from "./capabilities.js";

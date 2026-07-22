@@ -24,7 +24,6 @@ function session(instanceId: string): ReaderSession {
     slots: [],
     currentSlot: "",
     quotaBytes: 1024 * 1024,
-    connections: new Map(),
   };
 }
 

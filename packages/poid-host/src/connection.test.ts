@@ -41,7 +41,6 @@ function session(instanceId = `inst-${seq++}`): ReaderSession {
     slots: [],
     currentSlot: "",
     quotaBytes: 64 * 1024 * 1024,
-    connections: new Map(),
   };
 }
 
