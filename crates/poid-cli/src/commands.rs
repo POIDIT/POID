@@ -11,192 +11,51 @@ use poid_core::{
 };
 use serde_json::json;
 
+use poid_convert::{BuiltApp, SourceFile};
+
 use crate::output::{err, human_size, CmdError, Report};
 use crate::project::{self, ProjectFile};
 use crate::stdlib;
 use crate::templates;
 use crate::Template;
 
-/// A built application: the files destined for `app/`, the passthrough
-/// `data/` tree, and the audit trail for `runtime.toolchain` /
-/// `runtime.bundled_deps`.
-pub struct BuiltApp {
-    /// Files under `app/` (paths relative to `app/`).
-    app_files: Vec<ProjectFile>,
-    /// Root-level passthrough trees (`data/`, `deps/` — paths already
-    /// prefixed).
-    data_files: Vec<ProjectFile>,
-    /// `pkg@version` records of everything bundled from the Standard Library.
-    bundled_deps: Vec<String>,
-    /// Sidecar version, when a build ran.
-    esbuild_version: Option<String>,
-    /// The final HTML document (also inside `app_files`), for inference.
-    index_html: Option<String>,
-}
-
-/// Classifies the project, resolves Tier 1 (Standard Library), builds when
-/// sources need building, and inlines the result into the HTML document
-/// (M06 decision 1: readers execute inline output until the synthetic
-/// origin, issue #5). This is the one build path `pack` and `convert` share.
+/// Classifies, resolves Tier 1, builds when needed, and inlines the result —
+/// the CLI's half of the shared conversion pipeline. `prepare`/`finish` in
+/// `poid-convert` own the logic; this function supplies the one thing that
+/// differs from Studio's converter: the native esbuild sidecar between them.
 fn build_app(files: Vec<ProjectFile>, title: &str) -> Result<BuiltApp, CmdError> {
-    // `data/` (embedded state, SPEC §6), `deps/` (bundled runtime
-    // dependencies — Python wheels, SPEC §2.2) and `migrations/` (ordered
-    // schema scripts, SPEC §12) travel at the container root, not under
-    // `app/`, and are not fed to the bundler.
-    let (data_files, rest): (Vec<_>, Vec<_>) = files.into_iter().partition(|f| {
-        f.rel == "data"
-            || f.rel.starts_with("data/")
-            || f.rel == "deps"
-            || f.rel.starts_with("deps/")
-            || f.rel == "migrations"
-            || f.rel.starts_with("migrations/")
-    });
-
-    let sources: Vec<poid_convert::SourceFile> = rest
-        .iter()
-        .map(|f| poid_convert::SourceFile::new(f.rel.clone(), f.content.clone()))
+    let sources: Vec<SourceFile> = files
+        .into_iter()
+        .map(|f| SourceFile::new(f.rel, f.content))
         .collect();
-    let shape = poid_convert::classify(&sources);
+    let prepared = poid_convert::prepare(sources, title)?;
 
-    // Static content: pack as-is; a lone document becomes index.html.
-    if matches!(
-        shape.kind,
-        poid_convert::InputKind::Static | poid_convert::InputKind::SingleHtml
-    ) {
-        let mut app_files = rest;
-        if let (poid_convert::InputKind::SingleHtml, Some(html)) = (shape.kind, &shape.html) {
-            for f in &mut app_files {
-                if &f.rel == html {
-                    f.rel = "index.html".to_owned();
-                }
-            }
-        }
-        let index_html = app_files
-            .iter()
-            .find(|f| f.rel == "index.html")
-            .and_then(|f| String::from_utf8(f.content.clone()).ok());
-        return Ok(BuiltApp {
-            app_files,
-            data_files,
-            bundled_deps: Vec::new(),
-            esbuild_version: None,
-            index_html,
-        });
+    // No build (static content, a lone HTML document): straight to finish.
+    if !prepared.needs_build {
+        return Ok(poid_convert::finish(prepared, None, None)?);
     }
 
-    // A build is needed: resolve Tier 1, stage, bundle, inline.
-    let mut requested: Vec<String> = project::bare_imports(&rest).into_iter().collect();
-    if shape.uses_jsx && !requested.iter().any(|s| s == "react/jsx-runtime") {
-        // The automatic JSX runtime imports `react/jsx-runtime` even though
-        // no source names it.
-        requested.push("react/jsx-runtime".to_owned());
-    }
-    let mut staged: Vec<ProjectFile> = rest.clone();
-    let entry = match shape.kind {
-        poid_convert::InputKind::Artifact => {
-            let component = shape.entry.clone().unwrap_or_default();
-            let stem = component.trim_end_matches(".tsx").trim_end_matches(".jsx");
-            staged.push(ProjectFile {
-                rel: "__poid_entry.jsx".to_owned(),
-                content: artifact_entry(stem).into_bytes(),
-            });
-            for spec in ["react", "react/jsx-runtime", "react-dom/client"] {
-                if !requested.iter().any(|s| s == spec) {
-                    requested.push(spec.to_owned());
-                }
-            }
-            "__poid_entry.jsx".to_owned()
-        }
-        _ => shape.entry.clone().ok_or_else(|| {
-            err(
-                "bundle-entry-missing",
-                format!(
-                    "this project has sources to build but no entry file; looked for {}",
-                    poid_convert::ENTRY_CANDIDATES.join(", ")
-                ),
-            )
-        })?,
-    };
-
-    let resolution = stdlib::resolve(requested)?;
-    if !resolution.missing.is_empty() {
-        let mut msg = format!(
-            "cannot resolve bare import(s): `{}`. They are not in the Standard Library \
-             (Tier 1). In Studio, the Resolver can download a dependency with your consent \
-             and store it inside the POID (Tier 2); with the CLI, vendor the files into the \
-             project and import them with relative paths. Nothing is fetched from the \
-             network without consent.",
-            resolution.missing.join("`, `")
-        );
-        for (name, reason) in &resolution.exclusions {
-            msg.push_str(&format!("\n  `{name}`: {reason}"));
-        }
-        return Err(err("unresolved-dependency", msg));
-    }
-
+    // Load and verify the resolved Standard Library bundles, then run the
+    // native sidecar over the staged sources.
     let mut aliases = Vec::new();
-    let mut bundled_deps: Vec<String> = Vec::new();
-    if !resolution.selected.is_empty() {
+    if !prepared.selections.is_empty() {
         let lib_dir = stdlib::locate_dir()?;
-        for selection in &resolution.selected {
+        for selection in &prepared.selections {
             aliases.push((
                 selection.specifier.clone(),
                 stdlib::load_verified(&lib_dir, selection)?,
             ));
-            if !bundled_deps.contains(&selection.record) {
-                bundled_deps.push(selection.record.clone());
-            }
         }
-        bundled_deps.sort();
     }
 
+    let entry = prepared.entry.clone().unwrap_or_default();
     let esbuild = project::find_esbuild()?;
-    let bundled = project::bundle_staged(&staged, &entry, &aliases, &esbuild)?;
-
-    let html_source = shape
-        .html
-        .as_ref()
-        .and_then(|rel| rest.iter().find(|f| &f.rel == rel))
-        .and_then(|f| std::str::from_utf8(&f.content).ok().map(str::to_owned));
-    let mut parts = poid_convert::InlineParts {
-        js: Some(String::from_utf8_lossy(&bundled.js).into_owned()),
-        css: None,
-        title: title.to_owned(),
-    };
-    if let Some(css) = &bundled.css {
-        parts.css = Some(String::from_utf8_lossy(css).into_owned());
-    }
-    let index_html = poid_convert::inline_into_html(html_source.as_deref(), &parts);
-
-    // Sources, styles and the source HTML are consumed by the build; other
-    // files (icons, datasets the app opens at runtime, docs) pack as-is.
-    let consumed = |rel: &str| {
-        [".js", ".mjs", ".ts", ".tsx", ".jsx", ".css"]
-            .iter()
-            .any(|ext| rel.ends_with(ext))
-            || Some(rel) == shape.html.as_deref()
-    };
-    let mut app_files: Vec<ProjectFile> = rest.into_iter().filter(|f| !consumed(&f.rel)).collect();
-    app_files.push(ProjectFile {
-        rel: "index.html".to_owned(),
-        content: index_html.clone().into_bytes(),
-    });
-    app_files.sort_by(|a, b| a.rel.cmp(&b.rel));
-
-    Ok(BuiltApp {
-        app_files,
-        data_files,
-        bundled_deps,
-        esbuild_version: Some(esbuild.version),
-        index_html: Some(index_html),
-    })
-}
-
-/// The generated mount wrapper for a single-component AI artifact.
-fn artifact_entry(component_stem: &str) -> String {
-    format!(
-        "import App from \"./{component_stem}\";\nimport {{ createRoot }} from \"react-dom/client\";\nconst node = document.getElementById(\"root\") ?? (() => {{\n  const d = document.createElement(\"div\");\n  d.id = \"root\";\n  document.body.append(d);\n  return d;\n}})();\ncreateRoot(node).render(<App />);\n"
-    )
+    let bundled = project::bundle_staged(&prepared.staged, &entry, &aliases, &esbuild)?;
+    Ok(poid_convert::finish(
+        prepared,
+        Some(bundled),
+        Some(esbuild.version),
+    )?)
 }
 
 pub fn init(dir: &Path, template: Template, force: bool) -> Result<Report, CmdError> {
@@ -365,41 +224,14 @@ pub fn convert(input: &Path, output: Option<&Path>) -> Result<Report, CmdError> 
     }
     let name = capitalize(&raw_name);
     let built = build_app(files, &name)?;
+    let count = built.app_files.len() + built.data_files.len();
 
-    if !built.app_files.iter().any(|f| f.rel == "index.html") {
-        return Err(err(
-            "convert-no-document",
-            "the input produced no HTML document to open — a POID needs an app/index.html",
-        ));
-    }
-
-    let inferred =
-        poid_convert::infer_permissions(&[built.index_html.as_deref().unwrap_or_default()]);
-    let plan = poid_convert::ConvertPlan {
-        app_id: format!("local.poid.{}", poid_convert::slug_of(&raw_name)),
-        name: name.clone(),
-        inferred,
-        bundled_deps: built.bundled_deps.clone(),
-        builder: format!("poid-cli@{}", env!("CARGO_PKG_VERSION")),
-        esbuild: built.esbuild_version.clone(),
-    };
-    let manifest = poid_convert::converted_manifest(&plan).map_err(PoidError::from)?;
-
-    let mut builder = PoidBuilder::new(manifest);
-    let mut count = 0usize;
-    for f in &built.app_files {
-        builder = builder.file(format!("app/{}", f.rel), f.content.clone())?;
-        count += 1;
-    }
-    for f in &built.data_files {
-        builder = builder.file(f.rel.clone(), f.content.clone())?;
-        count += 1;
-    }
-    let bytes = poid_core::pack(builder)?;
-
-    // Self-check, like pack: never write a file this CLI would not open.
-    let poid = poid_core::open(&bytes)?;
-    poid.verify()?;
+    let bytes = poid_convert::pack_converted(
+        &built,
+        &name,
+        &raw_name,
+        &format!("poid-cli@{}", env!("CARGO_PKG_VERSION")),
+    )?;
 
     let out_path = match output {
         Some(p) => p.to_path_buf(),

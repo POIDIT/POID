@@ -12,14 +12,22 @@
 //! caller builds it and hands the outputs to [`assemble`].
 
 mod classify;
+mod error;
 mod html;
+mod imports;
 mod infer;
 mod manifest;
+mod pipeline;
+mod stdlib;
 
 pub use classify::{classify, InputKind, ProjectShape, ENTRY_CANDIDATES};
+pub use error::ConvertError;
 pub use html::{inline_into_html, InlineParts};
+pub use imports::bare_imports;
 pub use infer::{infer_permissions, InferredPermissions};
 pub use manifest::{converted_manifest, slug_of, ConvertPlan};
+pub use pipeline::{finish, pack_converted, prepare, BuiltApp, Bundled, Prepared};
+pub use stdlib::{resolve, verify_bundle, Resolution, Selection};
 
 /// A project file: relative `/`-separated path plus content.
 #[derive(Debug, Clone)]

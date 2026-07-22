@@ -1,9 +1,10 @@
 //! Project loading and the `pack` build pipeline: file collection, project
 //! type detection, bare-import scanning and the esbuild sidecar.
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+use poid_convert::{Bundled, SourceFile};
 
 use crate::output::{err, CmdError};
 
@@ -86,65 +87,6 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<ProjectFile>) -> Result<(), CmdEr
         });
     }
     Ok(())
-}
-
-/// Scans JS/TS sources for bare imports (`import x from "react"`).
-///
-/// A heuristic line scan, not a parser. Relative (`./`, `../`), absolute
-/// and URL specifiers are fine; bare specifiers resolve through the
-/// Standard Library (Tier 1) or fail with a clear error.
-pub fn bare_imports(files: &[ProjectFile]) -> BTreeSet<String> {
-    let mut found = BTreeSet::new();
-    for file in files {
-        let is_source = [".js", ".mjs", ".ts", ".tsx", ".jsx"]
-            .iter()
-            .any(|ext| file.rel.ends_with(ext));
-        if !is_source {
-            continue;
-        }
-        let Ok(text) = std::str::from_utf8(&file.content) else {
-            continue;
-        };
-        for spec in import_specifiers(text) {
-            let relative = spec.starts_with("./") || spec.starts_with("../");
-            let url = spec.contains("://") || spec.starts_with("data:");
-            if !relative && !url && !spec.starts_with('/') && !spec.is_empty() {
-                found.insert(spec);
-            }
-        }
-    }
-    found
-}
-
-/// Extracts string literals that follow `from` / `import(` / bare `import`.
-fn import_specifiers(text: &str) -> Vec<String> {
-    let mut specs = Vec::new();
-    let bytes = text.as_bytes();
-    let mut hits: Vec<usize> = Vec::new();
-    for keyword in ["from", "import"] {
-        hits.extend(text.match_indices(keyword).map(|(i, _)| i));
-    }
-    hits.sort_unstable();
-    for i in hits {
-        let mut j = i;
-        // skip the keyword
-        while j < bytes.len() && bytes[j].is_ascii_alphabetic() {
-            j += 1;
-        }
-        // skip whitespace and an optional `(` (dynamic import)
-        while j < bytes.len() && (bytes[j].is_ascii_whitespace() || bytes[j] == b'(') {
-            j += 1;
-        }
-        if j >= bytes.len() || (bytes[j] != b'"' && bytes[j] != b'\'') {
-            continue;
-        }
-        let quote = bytes[j];
-        let start = j + 1;
-        if let Some(end) = text[start..].find(quote as char) {
-            specs.push(text[start..start + end].to_owned());
-        }
-    }
-    specs
 }
 
 /// The build contract shared with `@poid/toolchain` (ARCHITECTURE §5.1):
@@ -278,17 +220,9 @@ pub fn find_esbuild() -> Result<Esbuild, CmdError> {
     })
 }
 
-/// The output of one contract build: bundled ESM plus CSS when any
-/// stylesheet was imported.
-pub struct Bundled {
-    /// Minified ESM (`main.js`).
-    pub js: Vec<u8>,
-    /// Minified CSS (`main.css`), when present.
-    pub css: Option<Vec<u8>>,
-}
-
 /// Bundles `entry` from an in-memory file set with the sidecar under the
-/// build contract.
+/// build contract. Produces the [`poid_convert::Bundled`] the shared pipeline's
+/// `finish` step consumes.
 ///
 /// The files are **staged into a temporary directory** and the sidecar runs
 /// with that directory as its working directory: output never depends on
@@ -297,7 +231,7 @@ pub struct Bundled {
 /// ones). `aliases` map bare specifiers to files outside the stage (the
 /// verified Standard Library bundles).
 pub fn bundle_staged(
-    files: &[ProjectFile],
+    files: &[SourceFile],
     entry: &str,
     aliases: &[(String, PathBuf)],
     esbuild: &Esbuild,
@@ -390,36 +324,6 @@ mod tests {
         );
     }
 
-    fn src(rel: &str, content: &str) -> ProjectFile {
-        ProjectFile {
-            rel: rel.to_owned(),
-            content: content.as_bytes().to_vec(),
-        }
-    }
-
-    #[test]
-    fn finds_bare_imports_and_ignores_relative_ones() {
-        let files = [src(
-            "main.js",
-            r#"import { a } from "./local.js";
-import react from "react";
-import "side-effect-pkg";
-const lazy = await import("lodash-es");
-import x from "../up.js";
-import url from "https://example.com/mod.js";
-"#,
-        )];
-        let bare = bare_imports(&files);
-        let names: Vec<_> = bare.iter().map(String::as_str).collect();
-        assert_eq!(names, ["lodash-es", "react", "side-effect-pkg"]);
-    }
-
-    #[test]
-    fn non_source_files_are_not_scanned() {
-        let files = [src("notes.md", r#"import fake from "react""#)];
-        assert!(bare_imports(&files).is_empty());
-    }
-
     #[test]
     fn a_real_vite_project_ships_tooling_config_that_collect_files_must_skip() {
         // A create-vite output really does import "vite" and
@@ -459,7 +363,11 @@ import url from "https://example.com/mod.js";
         assert!(rels.contains(&"src/App.tsx"));
 
         // And critically: no bare import from the excluded config leaks in.
-        let bare = bare_imports(&files);
+        let sources: Vec<SourceFile> = files
+            .iter()
+            .map(|f| SourceFile::new(f.rel.clone(), f.content.clone()))
+            .collect();
+        let bare = poid_convert::bare_imports(&sources);
         assert!(bare.is_empty(), "got {bare:?}");
     }
 
