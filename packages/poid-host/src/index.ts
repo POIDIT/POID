@@ -62,7 +62,12 @@ export {
   schemaVersionOf,
 } from "./migrations.js";
 export { BlobOrigin, type SyntheticOrigin } from "./origin.js";
-export { type MountOptions, mountReader, type ReaderHandle } from "./reader.js";
+export {
+  type MountOptions,
+  mountReader,
+  type PreparedMount,
+  type ReaderHandle,
+} from "./reader.js";
 export { seedFromStore } from "./seed.js";
 export { dumpSql } from "./sql-dump.js";
 export {

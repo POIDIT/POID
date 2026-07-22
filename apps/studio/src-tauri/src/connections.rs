@@ -16,9 +16,10 @@
 //! cannot reach Tauri IPC at all. Defence in depth is cheap here: one
 //! comparison.
 
-use poid_broker::{ConnectionId, ConnectionKind, Origin};
-use poid_connections::{ConnectionRecord, NewConnection};
-use tauri::{State, WebviewWindow};
+use poid_broker::binding::{candidates, BindingRequest};
+use poid_broker::{ConnectionId, ConnectionKind, Origin, RequireKind};
+use poid_connections::{ConnectionRecord, NewConnection, RecordedBinding};
+use tauri::{Manager, State, WebviewWindow};
 use uuid::Uuid;
 
 use crate::connections_state::ConnectionsState;
@@ -162,7 +163,7 @@ pub fn connection_rename(
         .map_err(|e| e.to_string())
 }
 
-/// Removes a connection and its credential.
+/// Removes a connection, its credential, and every binding that named it.
 #[tauri::command]
 pub fn connection_remove(
     window: WebviewWindow,
@@ -170,9 +171,17 @@ pub fn connection_remove(
     id: String,
 ) -> Result<(), String> {
     hub_only(window.label())?;
+    let id = ConnectionId::new(id);
     connections
-        .with(|store| store.remove(&ConnectionId::new(id)))
-        .map_err(|e| e.to_string())
+        .with(|store| store.remove(&id))
+        .map_err(|e| e.to_string())?;
+    // Bindings that pointed here would otherwise send every affected document
+    // to an error on open. Forgetting them sends it to the prompt instead,
+    // which is the honest answer to "the database you chose is gone".
+    connections
+        .with_bindings(|bindings| bindings.forget_connection(&id))
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Reports whether the OS keychain still holds this connection's credential.
@@ -201,6 +210,164 @@ pub fn connection_check_credential(
 #[tauri::command]
 pub fn connection_kinds() -> Vec<&'static str> {
     vec![ConnectionKind::Sql.as_str(), ConnectionKind::Net.as_str()]
+}
+
+// ----------------------------------------------------------------- binding
+//
+// The commands below serve **Reader** windows, not the hub, and are read-only
+// about connections: they list what could serve this document and record which
+// the user picked (SPEC §7.2.3). None of them can reach a credential.
+//
+// Scope discipline: the document is resolved through the calling window's
+// label, exactly as every vault command is. There is deliberately no parameter
+// naming an app id, an instance id, or another window — so no window can read
+// or overwrite another document's binding.
+
+/// The identity of the document a Reader window holds.
+fn window_document(window: &WebviewWindow) -> Result<(String, String), String> {
+    let dto = window
+        .app_handle()
+        .state::<crate::state::Documents>()
+        .get(window.label())
+        .ok_or("this window has no document")?;
+    let crate::document::DocumentDto::Loaded { manifest_json, .. } = dto else {
+        return Err("a rejected document has no storage binding".to_owned());
+    };
+    let manifest: serde_json::Value =
+        serde_json::from_str(&manifest_json).map_err(|_| "unreadable manifest".to_owned())?;
+    let app_id = manifest
+        .pointer("/app/id")
+        .and_then(|v| v.as_str())
+        .ok_or("this document has no app id")?
+        .to_owned();
+    let instance_id = manifest
+        .pointer("/instance/id")
+        .and_then(|v| v.as_str())
+        .ok_or("this document has no instance id")?
+        .to_owned();
+    Ok((app_id, instance_id))
+}
+
+/// What the reader needs to draw the binding prompt (SPEC §7.2.3).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BindingOptions {
+    /// Connections that can serve this document's declared need, in the order
+    /// to offer them.
+    pub candidates: Vec<ConnectionDto>,
+    /// The recorded decision: `"unset"`, `"local"`, or a connection id.
+    ///
+    /// `"unset"` and `"local"` are different on purpose. The first means the
+    /// user has not been asked; the second means they were asked and said no,
+    /// and re-asking would turn a consent prompt into nagware.
+    pub recorded: String,
+}
+
+/// Lists the connections that could serve this document, plus what the user
+/// already decided.
+///
+/// `require` is the manifest's `storage.requires.kind`, read by the Reader
+/// from its own manifest — an application cannot influence it, because the
+/// application never speaks to Tauri IPC at all.
+#[tauri::command]
+pub fn connection_choices(
+    window: WebviewWindow,
+    connections: State<'_, ConnectionsState>,
+    require: String,
+    hint: Option<String>,
+) -> Result<BindingOptions, String> {
+    let (app_id, instance_id) = window_document(&window)?;
+    let require = parse_require(&require)?;
+    let request = BindingRequest { require, hint };
+
+    let refs_and_records = connections
+        .with(|store| {
+            let refs = store.refs();
+            let candidates = candidates(&request, &refs);
+            Ok(candidates
+                .iter()
+                .filter_map(|c| {
+                    store
+                        .get(&c.id)
+                        .map(|record| (record.clone(), c.id.clone()))
+                })
+                .map(|(record, id)| {
+                    let has = store.has_secret(&id).unwrap_or(false);
+                    dto(&record, has)
+                })
+                .collect::<Vec<_>>())
+        })
+        .map_err(|e| e.to_string())?;
+
+    let recorded = connections
+        .with_bindings(|bindings| {
+            Ok(match bindings.get(&app_id, &instance_id) {
+                None => "unset".to_owned(),
+                Some(RecordedBinding::Local) => "local".to_owned(),
+                Some(RecordedBinding::Connection { id }) => id.to_string(),
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    Ok(BindingOptions {
+        candidates: refs_and_records,
+        recorded,
+    })
+}
+
+/// Records the user's binding decision for this document.
+///
+/// `choice` is `"local"` or a connection id. A named connection is checked
+/// against the document's declared need before it is recorded, so a UI bug
+/// cannot bind a kanban board to a connection that could never serve it.
+#[tauri::command]
+pub fn connection_bind(
+    window: WebviewWindow,
+    connections: State<'_, ConnectionsState>,
+    require: String,
+    choice: String,
+) -> Result<(), String> {
+    let (app_id, instance_id) = window_document(&window)?;
+    let require = parse_require(&require)?;
+
+    let binding = if choice == "local" {
+        RecordedBinding::Local
+    } else {
+        let id = ConnectionId::new(choice);
+        let usable = connections
+            .with(|store| {
+                Ok(store
+                    .get(&id)
+                    .map(|record| record.to_ref().satisfies(require)))
+            })
+            .map_err(|e| e.to_string())?;
+        match usable {
+            None => return Err("that connection is no longer configured".to_owned()),
+            Some(false) => return Err("that connection cannot store this kind of data".to_owned()),
+            Some(true) => RecordedBinding::Connection { id },
+        }
+    };
+
+    connections
+        .with_bindings(|bindings| bindings.set(&app_id, &instance_id, binding))
+        .map_err(|e| e.to_string())
+}
+
+/// Brings the Studio hub forward so the user can add a connection without
+/// losing the document window they are in.
+#[tauri::command]
+pub fn open_hub(app: tauri::AppHandle) {
+    crate::windows::focus_or_create_studio(&app);
+}
+
+fn parse_require(value: &str) -> Result<RequireKind, String> {
+    match value {
+        "kv" => Ok(RequireKind::Kv),
+        "sql" => Ok(RequireKind::Sql),
+        "docs" => Ok(RequireKind::Docs),
+        "files" => Ok(RequireKind::Files),
+        other => Err(format!("`{other}` is not a storage requirement")),
+    }
 }
 
 #[cfg(test)]

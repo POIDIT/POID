@@ -514,3 +514,82 @@ button:hover {
   gap: 0.5rem;
   margin-top: 0.2rem;
 }
+
+/* ---- The connection-choice prompt (SPEC §7.2.3) ---- */
+
+.poid-binding {
+  max-width: 34rem;
+  margin: 3rem auto;
+  padding: 1.5rem 1.75rem 1.75rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.poid-binding__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.poid-binding__lead,
+.poid-binding__note {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.poid-binding__subtitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.poid-binding__list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.poid-binding__candidate {
+  width: 100%;
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  background: var(--panel-2);
+}
+
+.poid-binding__candidate-label {
+  font-weight: 600;
+}
+
+.poid-binding__candidate-target {
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.poid-binding__stale {
+  margin: 0 0 0.75rem;
+  color: var(--danger);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.poid-binding__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.poid-binding__primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #08130d;
+  font-weight: 600;
+}

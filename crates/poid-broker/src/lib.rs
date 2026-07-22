@@ -35,6 +35,7 @@ pub use binding::{Binding, BindingRequest, Resolved};
 pub use connection::{ConnectionId, ConnectionKind, ConnectionRef};
 pub use error::{ErrorCode, PolicyError, SafeError};
 pub use network::{classify, NetworkPolicy, Origin};
+pub use poid_core::RequireKind;
 pub use scrub::Redactor;
 
 /// Default posture for every permission not explicitly granted (SPEC §9.1).

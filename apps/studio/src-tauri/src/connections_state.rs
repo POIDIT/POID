@@ -9,11 +9,12 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use poid_connections::{ConnectionError, ConnectionStore, KeyringStore};
+use poid_connections::{BindingStore, ConnectionError, ConnectionStore, KeyringStore};
 
 /// The user's configured connections, behind one lock.
 pub struct ConnectionsState {
     store: Mutex<ConnectionStore<KeyringStore>>,
+    bindings: Mutex<BindingStore>,
 }
 
 impl ConnectionsState {
@@ -28,9 +29,31 @@ impl ConnectionsState {
     /// user to retype credentials they had already stored.
     pub fn open(root: PathBuf) -> Result<Self, ConnectionError> {
         let store = ConnectionStore::open(root.join("connections.json"), KeyringStore::new())?;
+        let bindings = BindingStore::open(root.join("bindings.json"))?;
         Ok(Self {
             store: Mutex::new(store),
+            bindings: Mutex::new(bindings),
         })
+    }
+
+    /// Runs `f` against the recorded bindings.
+    ///
+    /// # Errors
+    ///
+    /// Propagates whatever `f` returns; a poisoned lock surfaces as a registry
+    /// read failure rather than a panic.
+    pub fn with_bindings<T>(
+        &self,
+        f: impl FnOnce(&mut BindingStore) -> Result<T, ConnectionError>,
+    ) -> Result<T, ConnectionError> {
+        let mut bindings = self
+            .bindings
+            .lock()
+            .map_err(|_| ConnectionError::Registry {
+                operation: "read",
+                path: "<in-memory bindings>".to_owned(),
+            })?;
+        f(&mut bindings)
     }
 
     /// Runs `f` against the registry.

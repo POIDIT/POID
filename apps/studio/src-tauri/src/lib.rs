@@ -104,7 +104,10 @@ pub fn run() {
             connections::connection_rename,
             connections::connection_remove,
             connections::connection_check_credential,
-            connections::connection_kinds
+            connections::connection_kinds,
+            connections::connection_choices,
+            connections::connection_bind,
+            connections::open_hub
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {

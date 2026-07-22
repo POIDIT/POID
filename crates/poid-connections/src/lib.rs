@@ -29,12 +29,14 @@
 
 #![forbid(unsafe_code)]
 
+pub mod bindings;
 pub mod dsn;
 pub mod error;
 pub mod record;
 pub mod secret;
 pub mod store;
 
+pub use bindings::{BindingStore, RecordedBinding};
 pub use dsn::{ParsedDsn, SqlTarget};
 pub use error::{ConnectionError, Result};
 pub use record::{ConnectionConfig, ConnectionRecord};
