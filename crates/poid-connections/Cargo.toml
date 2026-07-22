@@ -25,6 +25,20 @@ thiserror.workspace = true
 # and Secret Service over zbus on Linux. zbus is pure Rust, so this still
 # builds on a CI runner with no D-Bus development headers installed.
 keyring = "4.1.5"
+# The brokered network path (SPEC §7.2.5). `default-features = false` drops
+# native-tls: rustls with the ring provider is pure Rust plus a vendored C
+# build, so a CI runner needs no OpenSSL development headers. Redirects are
+# handled by us, not by reqwest, because every hop has to be re-checked
+# against the allowlist and re-resolved.
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider",
+    "webpki-roots",
+    "charset",
+    "http2",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio = { version = "1", features = ["rt", "net", "time"] }
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "time"] }

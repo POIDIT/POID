@@ -32,6 +32,7 @@
 pub mod bindings;
 pub mod dsn;
 pub mod error;
+pub mod http;
 pub mod record;
 pub mod secret;
 pub mod store;
@@ -39,6 +40,7 @@ pub mod store;
 pub use bindings::{BindingStore, RecordedBinding};
 pub use dsn::{ParsedDsn, SqlTarget};
 pub use error::{ConnectionError, Result};
+pub use http::{brokered_fetch, FetchLimits, FetchRequest, FetchResponse, OriginCredentials};
 pub use record::{ConnectionConfig, ConnectionRecord};
 pub use secret::{KeyringStore, SecretStore, SERVICE};
 pub use store::{ConnectionStore, NewConnection};

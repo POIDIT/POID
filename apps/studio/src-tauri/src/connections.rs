@@ -17,8 +17,11 @@
 //! comparison.
 
 use poid_broker::binding::{candidates, BindingRequest};
-use poid_broker::{ConnectionId, ConnectionKind, Origin, RequireKind};
-use poid_connections::{ConnectionRecord, NewConnection, RecordedBinding};
+use poid_broker::{ConnectionId, ConnectionKind, NetworkPolicy, Origin, RequireKind};
+use poid_connections::{
+    brokered_fetch, ConnectionRecord, FetchLimits, FetchRequest, NewConnection, OriginCredentials,
+    RecordedBinding,
+};
 use tauri::{Manager, State, WebviewWindow};
 use uuid::Uuid;
 
@@ -358,6 +361,125 @@ pub fn connection_bind(
 #[tauri::command]
 pub fn open_hub(app: tauri::AppHandle) {
     crate::windows::focus_or_create_studio(&app);
+}
+
+// -------------------------------------------------------------- poid.net
+//
+// The first outbound request POID makes for an application. Everything that
+// decides whether it may happen is in `poid-broker`; everything that performs
+// it is in `poid-connections`. This command's only job is to assemble the two
+// from *this window's* document — never from a parameter.
+
+/// A brokered response, shaped for the host-side broker.
+///
+/// No echo of the request: an application must not be able to read back the
+/// headers that were actually sent, because those carry the credential.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchResponseDto {
+    /// HTTP status code.
+    pub status: u16,
+    /// HTTP reason phrase.
+    pub status_text: String,
+    /// Response headers, minus the ones the broker withholds.
+    pub headers: std::collections::HashMap<String, String>,
+    /// Response body as text.
+    pub body: String,
+}
+
+/// The origins this document may reach, from its own manifest.
+///
+/// The manifest is a *request* (SPEC §9.1); the grant is the user's consent to
+/// run it. Today's consent screen is one Run/Cancel decision, so approving the
+/// run approves the allowlist it declared — `runGrant` in `@poid/host` says
+/// the same thing on the other side. Per-permission toggles are a later
+/// milestone, and when they arrive the approved set arrives here instead of
+/// being derived.
+fn declared_origins(window: &WebviewWindow) -> Result<Vec<Origin>, String> {
+    let dto = window
+        .app_handle()
+        .state::<crate::state::Documents>()
+        .get(window.label())
+        .ok_or("this window has no document")?;
+    let crate::document::DocumentDto::Loaded { manifest_json, .. } = dto else {
+        return Err("a rejected document has no network permission".to_owned());
+    };
+    let manifest: serde_json::Value =
+        serde_json::from_str(&manifest_json).map_err(|_| "unreadable manifest".to_owned())?;
+
+    let mut origins = Vec::new();
+    if let Some(list) = manifest
+        .pointer("/permissions/network")
+        .and_then(|v| v.as_array())
+    {
+        for entry in list.iter().filter_map(|v| v.as_str()) {
+            // A malformed allowlist entry is dropped rather than failing the
+            // whole request: the other entries are still a valid grant, and
+            // the effect of dropping one is that it is unreachable.
+            if let Ok(origin) = Origin::parse(entry) {
+                origins.push(origin);
+            }
+        }
+    }
+    Ok(origins)
+}
+
+/// Performs `poid.net.fetch` on the application's behalf (SPEC §7.2.5).
+#[tauri::command]
+pub async fn net_fetch(
+    window: WebviewWindow,
+    connections: State<'_, ConnectionsState>,
+    url: String,
+    method: String,
+    headers: Vec<(String, String)>,
+    body: Option<String>,
+) -> Result<FetchResponseDto, String> {
+    let declared = declared_origins(&window)?;
+    let policy = NetworkPolicy::new(&declared, &declared);
+
+    // Gather the credentials for the allowlisted origins *before* any await:
+    // the registry lock is synchronous, and holding it across a network round
+    // trip would stall every other window for the length of the request.
+    let credentials = connections
+        .with(|store| {
+            let mut set = OriginCredentials::new();
+            for record in store.records() {
+                let reference = record.to_ref();
+                if reference.kind != ConnectionKind::Net {
+                    continue;
+                }
+                for origin in declared.iter().filter(|o| reference.covers(o)) {
+                    if let Ok(secret) = store.secret(&record.id) {
+                        set.insert(origin.clone(), secret);
+                    }
+                }
+            }
+            Ok(set)
+        })
+        .map_err(|e| e.to_string())?;
+
+    let response = brokered_fetch(
+        FetchRequest {
+            url,
+            method,
+            headers,
+            body,
+        },
+        &policy,
+        &credentials,
+        FetchLimits::default(),
+    )
+    .await
+    // The reason is for the user's log; the host-side broker turns whatever
+    // reaches it into a §9 code before the application sees anything.
+    .map_err(|e| e.to_string())?;
+
+    Ok(FetchResponseDto {
+        status: response.status,
+        status_text: response.status_text,
+        headers: response.headers.into_iter().collect(),
+        body: response.body,
+    })
 }
 
 fn parse_require(value: &str) -> Result<RequireKind, String> {

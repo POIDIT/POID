@@ -87,6 +87,46 @@ fn refuses_anything_that_is_not_exactly_an_origin() {
 }
 
 #[test]
+fn a_request_url_yields_its_origin_while_an_allowlist_entry_may_not_have_a_path() {
+    // Two jobs, two functions. An allowlist entry with a path is a mistake
+    // worth refusing — the user wrote something that does not mean what they
+    // think. A request URL with a path is ordinary.
+    assert!(Origin::parse("https://api.example.com/v1/things?q=1").is_err());
+    assert_eq!(
+        Origin::of_url("https://api.example.com/v1/things?q=1")
+            .expect("a request URL has an origin")
+            .to_string(),
+        "https://api.example.com"
+    );
+
+    for (url, expected) in [
+        ("https://a.test", "https://a.test"),
+        ("https://a.test/", "https://a.test"),
+        ("https://a.test:8443/deep/path", "https://a.test:8443"),
+        ("http://a.test/x#frag", "http://a.test"),
+        ("https://[2606:4700::1111]/x", "https://[2606:4700::1111]"),
+    ] {
+        assert_eq!(
+            Origin::of_url(url).expect("parses").to_string(),
+            expected,
+            "{url}"
+        );
+    }
+
+    // What `parse` refuses for being dangerous is still refused here: a
+    // credential in the URL, a non-HTTP scheme, whitespace.
+    for url in [
+        "https://user:pass@api.example.com/x",
+        "file:///etc/passwd",
+        "ftp://example.com/x",
+        "https://exa mple.com/x",
+        "api.example.com/x",
+    ] {
+        assert!(Origin::of_url(url).is_err(), "{url}");
+    }
+}
+
+#[test]
 fn parses_ip_literals_including_ipv6() {
     assert_eq!(
         origin("https://[2606:4700::1111]").host(),

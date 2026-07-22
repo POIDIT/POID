@@ -107,7 +107,8 @@ pub fn run() {
             connections::connection_kinds,
             connections::connection_choices,
             connections::connection_bind,
-            connections::open_hub
+            connections::open_hub,
+            connections::net_fetch
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {

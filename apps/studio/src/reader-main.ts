@@ -9,6 +9,7 @@
  */
 
 import {
+  type BrokerHandlers,
   capabilitiesFromGrant,
   consentManifestFrom,
   type DataEngine,
@@ -152,6 +153,29 @@ function renderCopyPrompt(root: HTMLElement, existingPath: string): Promise<stri
     root.replaceChildren(main);
   });
 }
+
+/**
+ * `poid.net.fetch`, forwarded to Core (SPEC §7.2.5).
+ *
+ * Nothing is decided here. This window checks nothing, holds no credential and
+ * knows no allowlist: it hands the request across IPC, and Rust does the
+ * allowlist check, the DNS resolution, the address validation, the header
+ * stripping and the credential injection. Keeping the decisions on the far
+ * side is what makes them true regardless of what happens in a web context.
+ */
+const netHandler: NonNullable<BrokerHandlers["net"]> = async (_session, params) => {
+  const init = (params.init ?? {}) as {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  };
+  return invoke("net_fetch", {
+    url: String(params.url),
+    method: init.method ?? "GET",
+    headers: Object.entries(init.headers ?? {}),
+    body: init.body ?? null,
+  });
+};
 
 /** What the Rust side reports for the binding prompt (SPEC §7.2.3). */
 interface BindingOptions {
@@ -350,7 +374,7 @@ async function runOutcome(root: HTMLElement, outcome: RunnableOutcome): Promise<
     connectSrc: facts.permissions.network,
     sdkSource: __SDK_SOURCE__,
     engine,
-    handlers: { sql: sqlHandlers.sql, docs: sqlHandlers.docs },
+    handlers: { sql: sqlHandlers.sql, docs: sqlHandlers.docs, net: netHandler },
     // After consent, before the application exists (SPEC §7.2.3).
     prepare:
       facts.storageMode === "connection"
@@ -372,7 +396,7 @@ async function runOutcome(root: HTMLElement, outcome: RunnableOutcome): Promise<
               persistence: sqlPersistence,
             });
             return {
-              handlers: { sql: sqlHandlers.sql, docs: sqlHandlers.docs },
+              handlers: { sql: sqlHandlers.sql, docs: sqlHandlers.docs, net: netHandler },
               storageBadge: "connection",
             };
           }

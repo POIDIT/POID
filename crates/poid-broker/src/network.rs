@@ -126,6 +126,37 @@ impl Origin {
         Ok(Self { scheme, host, port })
     }
 
+    /// The origin **of a request URL** — path, query and fragment discarded.
+    ///
+    /// Distinct from [`Origin::parse`], and the distinction is load-bearing.
+    /// `parse` reads an *allowlist entry*, where a path is a mistake worth
+    /// refusing: the user wrote something that does not mean what they think.
+    /// This reads a *URL an application asked for*, where a path is normal and
+    /// simply not part of the origin the allowlist is compared against.
+    ///
+    /// Everything else `parse` refuses is still refused here — an embedded
+    /// credential, a non-HTTP scheme, whitespace — because those are as wrong
+    /// in a request as in a rule.
+    ///
+    /// # Errors
+    ///
+    /// [`PolicyError::MalformedOrigin`] when no usable origin can be read.
+    pub fn of_url(url: &str) -> Result<Self, PolicyError> {
+        let bad = |why: &'static str| PolicyError::MalformedOrigin {
+            value: url.to_owned(),
+            why,
+        };
+        let (scheme, rest) = url
+            .split_once("://")
+            .ok_or_else(|| bad("it has no scheme"))?;
+        // The authority ends at the first `/`, `?` or `#`.
+        let authority = rest
+            .split(['/', '?', '#'])
+            .next()
+            .ok_or_else(|| bad("it has no host"))?;
+        Self::parse(&format!("{scheme}://{authority}"))
+    }
+
     /// The host, lowercased. An IPv6 literal keeps its brackets.
     #[must_use]
     pub fn host(&self) -> &str {

@@ -68,6 +68,18 @@ pub enum ConnectionError {
         /// Why it was refused.
         why: &'static str,
     },
+    /// A brokered network request was refused or failed (SPEC §7.2.5).
+    ///
+    /// The reason is free text because the **user's** log should say what
+    /// actually happened — which origin, which address, which transport
+    /// error. It is never forwarded to an application: the boundary maps it to
+    /// a `RUNTIME-API.md` §9 code first, and the text goes to the diagnostics
+    /// the user reads.
+    #[error("that request could not be made: {reason}")]
+    Network {
+        /// What went wrong, for the user's log.
+        reason: String,
+    },
 }
 
 /// Result alias for this crate.
