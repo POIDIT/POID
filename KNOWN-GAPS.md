@@ -150,21 +150,34 @@ query, so one exotic column does not make `SELECT *` unusable. Notably absent:
 
 ## Decisions worth revisiting, not defects
 
-- **The release profile.** M11 roughly doubled the Studio binary on Cargo's
-  defaults (9.36 → 18.44 MiB). Adding a `[profile.release]` with LTO, one
-  codegen unit and `strip` brought it to **10.10 MiB**, so the product's
-  "~10 MB" claim survives. Build time rises appreciably.
+- **The release profile, and an open question about binary size.**
 
-  Two caveats on that number. It was measured with `panic = "abort"`, which
-  was then **dropped**: it saves size but skips `onSuspend`, so an application
-  holding unsaved user data would lose it on a panic instead of getting a
-  chance to flush. The shipped profile is therefore slightly larger than 10.10
-  MiB and the exact figure was not captured. And the 9.36 MiB baseline predates
-  the profile, so part of the apparent 0.74 MiB growth is the profile itself —
-  M11's true cost is somewhere between +0.74 and +9.07 MiB.
+  | Studio binary | Size |
+  |---|---|
+  | pre-M11, Cargo defaults | 9.36 MiB |
+  | post-M11, Cargo defaults | 18.44 MiB |
+  | post-M11, LTO + strip + `panic = "abort"` | 10.10 MiB |
+  | **post-M11, LTO + strip — what ships today** | **16.16 MiB** |
 
-  **Worth doing:** measure the shipped profile once, and record it, so the next
-  milestone has a baseline that was taken under the same settings.
+  M11's network and database stacks roughly doubled the binary. A
+  `[profile.release]` with LTO, one codegen unit and `strip` recovers most of
+  it, at an appreciable build-time cost.
+
+  **`panic = "abort"` is worth 6.06 MiB — far more than expected — and it is
+  currently off.** The trade is not technical: with `abort`, a panic anywhere
+  kills the process immediately, so `poid.app.onSuspend` never runs and the
+  user loses the unsaved document in that window. Without it, the thread
+  unwinds, the application survives, and the data can be saved. 6 MiB against
+  losing someone's work seemed the wrong way round, so unwinding stayed — but
+  16.16 MiB dents the product's "~10 MB, not 120 MB" claim badly enough that
+  this deserves a deliberate decision rather than a default.
+
+  Untried middle grounds: `opt-level = "s"`/`"z"`, and putting the Postgres
+  driver behind a feature flag so a "reader-only" build ships without it.
+
+  Note also that the 9.36 MiB baseline predates the profile, so M11's true
+  cost is somewhere between +6.80 and +9.07 MiB rather than exactly either.
+  The next milestone should take its baseline under the shipped settings.
 - **The consent model is still one Run/Cancel.** So `net_fetch` derives the
   approved origin set from the manifest rather than from a recorded per-origin
   grant. When per-permission toggles arrive, the approved set should arrive
