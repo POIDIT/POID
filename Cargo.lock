@@ -844,6 +844,10 @@ dependencies = [
 name = "poid-broker"
 version = "0.0.1"
 dependencies = [
+ "poid-core",
+ "proptest",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 

@@ -11,3 +11,13 @@ workspace = true
 
 [dependencies]
 thiserror.workspace = true
+serde = { version = "1", features = ["derive"] }
+# The manifest types this crate reasons about (storage.requires) come from the
+# container authority rather than being restated here, so the two cannot drift.
+# `default-features = false` keeps the filesystem helpers out: this crate
+# performs no IO.
+poid-core = { path = "../poid-core", default-features = false }
+
+[dev-dependencies]
+proptest = "1.8.0"
+serde_json = "1"
