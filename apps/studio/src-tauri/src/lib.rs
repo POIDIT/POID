@@ -108,7 +108,8 @@ pub fn run() {
             connections::connection_choices,
             connections::connection_bind,
             connections::open_hub,
-            connections::net_fetch
+            connections::net_fetch,
+            connections::connection_sql_exec
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
@@ -116,6 +117,18 @@ pub fn run() {
                 window
                     .state::<vault_state::VaultState>()
                     .unbind_window(window.label());
+                // Close the window's database session too. Leaving it open
+                // would hold a server connection — and, on a backend that
+                // charges per connection, would cost the user money for a
+                // window they closed.
+                let handle = window.app_handle().clone();
+                let label = window.label().to_owned();
+                tauri::async_runtime::spawn(async move {
+                    handle
+                        .state::<connections_state::ConnectionsState>()
+                        .close_sql_for_window(&label)
+                        .await;
+                });
             }
         })
         .setup(move |app| {

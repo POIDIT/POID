@@ -35,6 +35,7 @@ pub mod error;
 pub mod http;
 pub mod record;
 pub mod secret;
+pub mod sql;
 pub mod store;
 
 pub use bindings::{BindingStore, RecordedBinding};
@@ -43,6 +44,7 @@ pub use error::{ConnectionError, Result};
 pub use http::{brokered_fetch, FetchLimits, FetchRequest, FetchResponse, OriginCredentials};
 pub use record::{ConnectionConfig, ConnectionRecord};
 pub use secret::{KeyringStore, SecretStore, SERVICE};
+pub use sql::{PostgresConnection, SqlResult};
 pub use store::{ConnectionStore, NewConnection};
 
 #[cfg(any(test, feature = "test-store"))]

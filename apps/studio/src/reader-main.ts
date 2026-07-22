@@ -16,7 +16,6 @@ import {
   hostFacts,
   IdbSqlPersistence,
   IndexedDbEngine,
-  loopbackConnection,
   makeSqlHandlers,
   mountReader,
   parseMigrations,
@@ -177,6 +176,57 @@ const netHandler: NonNullable<BrokerHandlers["net"]> = async (_session, params) 
   });
 };
 
+/**
+ * `poid.db.sql` served by the bound Connection (SPEC §7.2, M11.7).
+ *
+ * Every statement goes to Core, which holds the connection string, opens the
+ * socket and binds the parameters. This window sends SQL and parameters and
+ * receives rows; it never learns which database answered, which is what the
+ * application is also entitled to not learn (SPEC §7.2.4).
+ *
+ * Transactions work because the connection is per-window: BEGIN, the
+ * statements and COMMIT all run on one server session, in order. The `txId`
+ * the SDK threads through is accepted and ignored — there is exactly one
+ * session to be in a transaction on, so a second identifier would only be
+ * something to get wrong.
+ */
+function connectionSqlHandler(): NonNullable<BrokerHandlers["sql"]> {
+  return async (_session, method, params) => {
+    switch (method) {
+      case "db.sql.exec":
+        return invoke("connection_sql_exec", {
+          sql: String(params.sql),
+          params: (params.params as unknown[] | undefined) ?? [],
+        });
+      case "db.sql.begin":
+        await invoke("connection_sql_exec", { sql: "BEGIN", params: [] });
+        return "tx";
+      case "db.sql.commit":
+        await invoke("connection_sql_exec", { sql: "COMMIT", params: [] });
+        return undefined;
+      case "db.sql.rollback":
+        await invoke("connection_sql_exec", { sql: "ROLLBACK", params: [] });
+        return undefined;
+      default:
+        throw new Error(`${method} is not a SQL method`);
+    }
+  };
+}
+
+/**
+ * `poid.db.docs` is not served by a connection in this build.
+ *
+ * The document store's queries are SQLite-specific and translating them to
+ * Postgres is real work that is not done. Saying so is better than a partial
+ * implementation that fails on the third query an application makes: the
+ * reader does not offer a connection to a document-store application at all
+ * (see `connection_choices`), so reaching this is a bug rather than a
+ * configuration the user could produce.
+ */
+const connectionDocsHandler: NonNullable<BrokerHandlers["docs"]> = async () => {
+  throw new Error("this build cannot serve poid.db.docs from a connection");
+};
+
 /** What the Rust side reports for the binding prompt (SPEC §7.2.3). */
 interface BindingOptions {
   candidates: {
@@ -327,11 +377,12 @@ async function runOutcome(root: HTMLElement, outcome: RunnableOutcome): Promise<
       migrations: parseMigrations(files),
     });
 
-  // In connection mode the handlers depend on a decision the user has not made
-  // yet — the binding prompt runs after consent (SPEC §7.2.3) — so `prepare`
-  // below may replace this. Building it now costs nothing: makeSqlHandlers is
-  // lazy and creates no engine until the first query.
-  let sqlHandlers: SqlHandlers = localSql();
+  // The local tier, used for embedded and vault mode — and for a
+  // connection-mode document whose user declined every connection. When they
+  // pick one instead, `prepare` below substitutes handlers that talk to it and
+  // this one is simply never woken: makeSqlHandlers creates no engine until
+  // the first query.
+  const sqlHandlers: SqlHandlers = localSql();
 
   if (facts.storageMode === "vault") {
     const vaultEngine = await VaultIpcEngine.open();
@@ -386,17 +437,16 @@ async function runOutcome(root: HTMLElement, outcome: RunnableOutcome): Promise<
               // the badge is the user's record of where their data went.
               return { storageBadge: "local (not connected)" };
             }
-            // Keyed by the *connection*, not by the app: every POID bound to
-            // one connection shares its database, which is the defining
-            // property of a connection — data lives with the backend, not with
-            // the file.
-            sqlHandlers = loopbackConnection({
-              connectionId: choice.id,
-              wasm: sqlWasm,
-              persistence: sqlPersistence,
-            });
+            // Served by the real database the user picked (M11.7). Data lives
+            // with the backend, not with the file — which is the defining
+            // property of a connection, and the reason every POID bound to one
+            // connection sees the same rows.
             return {
-              handlers: { sql: sqlHandlers.sql, docs: sqlHandlers.docs, net: netHandler },
+              handlers: {
+                sql: connectionSqlHandler(),
+                docs: connectionDocsHandler,
+                net: netHandler,
+              },
               storageBadge: "connection",
             };
           }

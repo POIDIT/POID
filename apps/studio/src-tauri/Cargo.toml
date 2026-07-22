@@ -32,6 +32,7 @@ poid-vault = { path = "../../../crates/poid-vault" }
 poid-broker = { path = "../../../crates/poid-broker" }
 poid-connections = { path = "../../../crates/poid-connections" }
 uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["sync"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

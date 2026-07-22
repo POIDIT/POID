@@ -283,6 +283,20 @@ pub fn connection_choices(
     let require = parse_require(&require)?;
     let request = BindingRequest { require, hint };
 
+    // What the *format* allows a `sql` backend to serve is broader than what
+    // this build implements: `poid.db.docs` over a connection needs the
+    // document store's SQLite-specific SQL translated to Postgres, which is
+    // not written yet. Offering a connection that would then refuse the first
+    // `docs` call would be worse than offering none — an application whose
+    // need this build cannot serve gets an empty candidate list and the
+    // "keep it here" answer, which works.
+    if require != RequireKind::Sql {
+        return Ok(BindingOptions {
+            candidates: Vec::new(),
+            recorded: "local".to_owned(),
+        });
+    }
+
     let refs_and_records = connections
         .with(|store| {
             let refs = store.refs();
@@ -479,6 +493,82 @@ pub async fn net_fetch(
         status_text: response.status_text,
         headers: response.headers.into_iter().collect(),
         body: response.body,
+    })
+}
+
+// ------------------------------------------------- poid.db.sql, via Postgres
+//
+// The application's query runs against the database the *user* bound to this
+// document. It never names the connection: the binding is looked up from the
+// window's own document, exactly like the vault commands look up an instance.
+
+/// What one statement produced, shaped for the host-side broker.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlResultDto {
+    /// Result rows, each an object keyed by column name.
+    pub rows: Vec<serde_json::Value>,
+    /// Rows the statement changed.
+    pub rows_affected: u64,
+}
+
+/// The connection bound to this window's document, if it is bound to one.
+fn bound_connection(
+    window: &WebviewWindow,
+    connections: &ConnectionsState,
+) -> Result<ConnectionId, String> {
+    let (app_id, instance_id) = window_document(window)?;
+    let recorded = connections
+        .with_bindings(|bindings| Ok(bindings.get(&app_id, &instance_id).cloned()))
+        .map_err(|e| e.to_string())?;
+    match recorded {
+        Some(RecordedBinding::Connection { id }) => Ok(id),
+        // Both of these are CONNECTION_REQUIRED on the far side: the user
+        // either declined, or was never asked because the reader has not run
+        // the prompt yet.
+        Some(RecordedBinding::Local) | None => {
+            Err("this document is not bound to a database".to_owned())
+        }
+    }
+}
+
+/// Runs `poid.db.sql.exec` against the bound connection.
+///
+/// `params` are bound by the driver, never interpolated into the statement.
+#[tauri::command]
+pub async fn connection_sql_exec(
+    window: WebviewWindow,
+    connections: State<'_, ConnectionsState>,
+    sql: String,
+    params: Vec<serde_json::Value>,
+) -> Result<SqlResultDto, String> {
+    let id = bound_connection(&window, &connections)?;
+    let client = connections
+        .sql_for_window(window.label(), &id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // A statement that returns rows and one that reports a row count are
+    // different driver calls, and the application should not have to know
+    // which it wrote. `query` handles anything with a result set; `execute`
+    // reports the count for the rest.
+    let trimmed = sql.trim_start().to_ascii_lowercase();
+    let returns_rows = trimmed.starts_with("select")
+        || trimmed.starts_with("with")
+        || trimmed.starts_with("show")
+        || trimmed.starts_with("explain")
+        || trimmed.contains(" returning ");
+
+    let result = if returns_rows {
+        client.exec(&sql, &params).await
+    } else {
+        client.execute(&sql, &params).await
+    }
+    .map_err(|e| e.to_string())?;
+
+    Ok(SqlResultDto {
+        rows: result.rows,
+        rows_affected: result.rows_affected,
     })
 }
 

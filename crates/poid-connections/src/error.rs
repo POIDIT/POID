@@ -80,6 +80,18 @@ pub enum ConnectionError {
         /// What went wrong, for the user's log.
         reason: String,
     },
+    /// A SQL connection could not be opened, or refused a statement.
+    ///
+    /// Like [`ConnectionError::Network`], the reason is free text for the
+    /// user's log and never for an application. Postgres error messages quote
+    /// the statement and sometimes the connection string, which is exactly why
+    /// this must be scrubbed before it is written and mapped to a §9 code
+    /// before it crosses the boundary (SPEC §7.2.4).
+    #[error("the database could not do that: {reason}")]
+    Sql {
+        /// What went wrong, for the user's log.
+        reason: String,
+    },
 }
 
 /// Result alias for this crate.
