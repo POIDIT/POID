@@ -1,0 +1,10 @@
+{
+  "$comment": "Engine manifest for the in-app build engine (SPEC 5.4: readers provide engines, files never do; readers MUST verify engine integrity before use). This is the pinned identity of the ONE esbuild-wasm build POID Studio's converter runs: exact version, download source, and the sha256 of the wasm the engine loads. Unlike Pyodide, this engine builds POIDs rather than running them, but the rule is the same - a downloaded binary is verified against this pin before it is trusted. scripts/fetch-esbuild.mjs stages the wasm from the esbuild-wasm dev dependency (no network) and verifies it against this pin (--write records it); Studio's Rust side downloads from `source` at runtime, verifies again, and caches it. The JS glue that drives this wasm is small and is bundled into the hub window; only the wasm is a managed runtime.",
+  "name": "esbuild",
+  "version": "0.25.12",
+  "compatible": ">=0.25 <0.26",
+  "source": "https://poiddev.poidit.workers.dev/engines/esbuild-0.25.12.wasm",
+  "files": {
+    "esbuild.wasm": "92c182cd141115f33ad08ad1d29b38f00f6292d38c3fe7ef85c11775407b54fb"
+  }
+}
