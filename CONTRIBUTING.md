@@ -19,13 +19,16 @@ Thank you for contributing. Start by reading:
 
 ## Security review requirement
 
-> **Any change to `crates/poid-broker/` requires an explicit security review
-> note in the PR description.** The note must state what privileged surface
-> the change touches, why it is safe, and which of the security rules in
-> `CONVENTIONS.md` apply. PRs touching the broker without this note will not
-> be merged.
+> **Any change to `crates/poid-broker/` or `crates/poid-connections/` requires
+> an explicit security review note in the PR description.** The note must state
+> what privileged surface the change touches, why it is safe, and which of the
+> security rules in `CONVENTIONS.md` apply. PRs touching either crate without
+> this note will not be merged.
 
 The broker is the single gate through which every privileged operation passes.
+`poid-connections` is where credentials actually live and where the outbound
+sockets are opened, which earns it the same bar: the two crates are one
+mechanism split so that the decisions can be reviewed without the effects.
 The non-negotiable security rules (from `CONVENTIONS.md`):
 
 1. Never execute native code from a container.

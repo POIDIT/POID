@@ -28,7 +28,8 @@ grants them.
 |---|---|
 | `crates/poid-core` | container logic: read / write / validate `.poid` (Rust) |
 | `crates/poid-vault` | Automerge CRDT storage, slots, instance identity (Rust) |
-| `crates/poid-broker` | permission enforcement, Data Engine, Connections (Rust) |
+| `crates/poid-broker` | permission, Connection and network policy — pure logic, no IO (Rust) |
+| `crates/poid-connections` | OS keychain, connection registry, brokered HTTP, Postgres (Rust) |
 | `crates/poid-cli` | the `poid` command-line tool (Rust) |
 | `packages/poid-sdk` | the `window.poid` API injected into the sandbox (TS) |
 | `packages/poid-host` | host side of the postMessage bridge (TS) |
