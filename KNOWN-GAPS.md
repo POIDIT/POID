@@ -70,6 +70,40 @@ is defence in depth rather than a live hole.
 
 ---
 
+## Broken infrastructure
+
+### The Cloudflare Workers deployment (`poiddev`) has never succeeded
+
+`Workers Builds: poiddev` fails on every commit, on `main` as well as on
+branches, going back to when the integration was connected around `d0ec82b`
+(M10.7). It has not passed once. It is **not** a regression from any milestone
+since, and a red check on a PR does not mean that PR broke anything.
+
+What is known:
+
+- The repository side of the pipeline is healthy. The documented build command
+  in `packages/poid-web/wrangler.jsonc` —
+  `pnpm --filter @poid/web build:wasm && pnpm --filter @poid/web build:site` —
+  runs clean locally, including the `wasm32-unknown-unknown` build.
+- The failure is **instantaneous**: the check's `started_at` and `completed_at`
+  are the same second. A build that fails in zero seconds has not compiled
+  anything, which points at the deployment configuration rather than at the
+  code.
+- A plausible cause is that Cloudflare's Workers Builds image has no Rust
+  toolchain, so the `rustup target add …` that the build command starts with
+  fails before anything else runs. Unconfirmed.
+
+**Only the maintainer can diagnose this**: the logs are in the Cloudflare
+dashboard, behind their account. The check's `details_url` points at the build.
+
+**Likely fix if the cause is the missing toolchain:** the built WASM is already
+committed (`packages/poid-web/src/wasm/`, `site/wasm/`), so the deployment does
+not need to build it. Dropping `rustup`/`build:wasm` from the dashboard's build
+command would leave `pnpm install && pnpm --filter @poid/web build:site`, which
+needs only Node. This belongs in its own branch, not in a milestone PR.
+
+---
+
 ## Unverified
 
 ### Nobody has run POID Studio with any of this
