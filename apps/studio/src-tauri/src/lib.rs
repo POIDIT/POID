@@ -13,6 +13,8 @@ mod asset_registry;
 mod association;
 mod cli;
 mod commands;
+mod connections;
+mod connections_state;
 mod document;
 mod state;
 mod vault_state;
@@ -96,7 +98,13 @@ pub fn run() {
             commands::vault_kv_clear,
             commands::vault_switch_slot,
             commands::vault_sql_load,
-            commands::vault_sql_save
+            commands::vault_sql_save,
+            connections::connections_list,
+            connections::connection_save,
+            connections::connection_rename,
+            connections::connection_remove,
+            connections::connection_check_credential,
+            connections::connection_kinds
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
@@ -112,9 +120,12 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .map_err(|e| format!("no app data dir: {e}"))?;
-            let vault = vault_state::VaultState::open(data_dir)
+            let vault = vault_state::VaultState::open(data_dir.clone())
                 .map_err(|e| format!("vault store unavailable: {e}"))?;
             app.manage(vault);
+            let connections = connections_state::ConnectionsState::open(data_dir)
+                .map_err(|e| format!("connection registry unavailable: {e}"))?;
+            app.manage(connections);
             match &launch {
                 Some(path) => windows::open_reader(app.handle(), path),
                 None => windows::focus_or_create_studio(app.handle()),

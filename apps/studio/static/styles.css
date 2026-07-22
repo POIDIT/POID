@@ -352,3 +352,165 @@ button:hover {
   border-radius: 50%;
   background: var(--accent);
 }
+
+/* ---- Connections (M11.3): the user's databases and API keys ---- */
+
+.conn {
+  margin-top: 2.5rem;
+}
+
+.conn__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.conn__title {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+}
+
+.conn__list {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.conn__empty {
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 44rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+.conn__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1.1rem;
+}
+
+.conn__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.conn__label {
+  font-weight: 600;
+}
+
+.conn__kind {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+}
+
+.conn__target {
+  color: var(--muted);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.conn__missing {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.conn__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.conn__delete:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ---- The add/edit dialog ---- */
+
+.conn-dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0;
+  width: min(34rem, 92vw);
+}
+
+.conn-dialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.conn-form {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.4rem 1.5rem 1.5rem;
+}
+
+.conn-form__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.conn-form__field {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.conn-form__field input,
+.conn-form__field select,
+.conn-form__field textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.conn-form__field textarea {
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.conn-form__hint {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.conn-form__error {
+  margin: 0;
+  color: var(--danger);
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.conn-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
