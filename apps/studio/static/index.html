@@ -12,93 +12,13 @@
       <span class="poid-header__name">POID STUDIO</span>
       <span class="poid-header__sub">applications that behave like documents</span>
     </header>
-    <main class="hub">
-      <section class="hub__open">
-        <h1 class="hub__title">Open a POID</h1>
-        <p class="hub__hint">
-          A POID opens in its own document window — double-clicking a .poid file anywhere does the
-          same and never shows this hub.
-        </p>
-        <button id="open-poid" class="poid-drop__pick" type="button">Open a POID…</button>
-      </section>
-      <section class="conn" aria-labelledby="conn-title">
-        <div class="conn__head">
-          <h2 class="conn__title" id="conn-title">Connections</h2>
-          <button id="conn-add" class="conn__add" type="button">Add a connection…</button>
-        </div>
-        <p class="hub__hint">
-          Databases and services your POIDs may ask to use. A POID never learns the password —
-          it asks for data, and Studio makes the request. Passwords are kept in this computer's
-          own credential store, never inside a POID and never in a file.
-        </p>
-        <div id="conn-list" class="conn__list" aria-live="polite"></div>
-      </section>
-
-      <section class="hub__tiles" aria-label="Studio tools (coming in later milestones)">
-        <div class="hub__tile" aria-disabled="true">
-          <h2>Convert</h2>
-          <p>Turn a folder, a ZIP or an HTML file into a POID.</p>
-          <span class="hub__soon">coming</span>
-        </div>
-        <div class="hub__tile" aria-disabled="true">
-          <h2>Edit</h2>
-          <p>Open a POID's inside and change it.</p>
-          <span class="hub__soon">coming</span>
-        </div>
-        <div class="hub__tile" aria-disabled="true">
-          <h2>AI</h2>
-          <p>Describe an application; get a POID.</p>
-          <span class="hub__soon">coming</span>
-        </div>
-        <div class="hub__tile" aria-disabled="true">
-          <h2>Library</h2>
-          <p>Every POID you have opened, in one place.</p>
-          <span class="hub__soon">coming</span>
-        </div>
-      </section>
-
-      <dialog id="conn-dialog" class="conn-dialog">
-        <form id="conn-form" method="dialog" class="conn-form">
-          <h2 id="conn-form-title" class="conn-form__title">Add a connection</h2>
-
-          <label class="conn-form__field">
-            <span>What is it?</span>
-            <select id="conn-kind" name="kind">
-              <option value="sql">A database (PostgreSQL, Supabase, Neon…)</option>
-              <option value="net">An API key for a website</option>
-            </select>
-          </label>
-
-          <label class="conn-form__field">
-            <span>Name it, so you recognise it later</span>
-            <input id="conn-label" name="label" type="text" placeholder="my-supabase" required />
-          </label>
-
-          <label class="conn-form__field" id="conn-origins-field">
-            <span>Which addresses may use it? One per line.</span>
-            <textarea id="conn-origins" name="origins" rows="2"
-              placeholder="https://api.example.com"></textarea>
-          </label>
-
-          <label class="conn-form__field">
-            <span id="conn-secret-label">Connection string</span>
-            <input id="conn-secret" name="secret" type="password" autocomplete="off"
-              spellcheck="false" placeholder="postgres://user:password@host:5432/database" />
-            <small id="conn-secret-hint" class="conn-form__hint">
-              This goes straight into your computer's credential store. Studio cannot show it
-              back to you afterwards — that is deliberate.
-            </small>
-          </label>
-
-          <p id="conn-error" class="conn-form__error" hidden></p>
-
-          <div class="conn-form__actions">
-            <button type="button" id="conn-cancel">Cancel</button>
-            <button type="button" id="conn-save" class="poid-drop__pick">Save</button>
-          </div>
-        </form>
-      </dialog>
-    </main>
+    <!-- Deliberately empty: the shell fills the navigation from its panel
+         registry and each panel renders its own markup, so adding a tool never
+         means editing this page. -->
+    <div class="hub-shell">
+      <nav id="hub-nav" class="hub-nav" aria-label="Studio tools"></nav>
+      <main id="hub-panel" class="hub"></main>
+    </div>
     <script type="module" src="hub.js"></script>
   </body>
 </html>

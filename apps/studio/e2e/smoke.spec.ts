@@ -1,10 +1,11 @@
 /**
- * The first tests that have ever run against POID Studio itself.
+ * The document path through the real Studio: what happens when a `.poid` is
+ * double-clicked.
  *
- * They are deliberately about the promises a user can see, not about internals:
- * a bare launch shows the hub, a document launch shows that document and never
- * the hub (UX rule 2), a good container runs after consent, and a container
- * carrying machine code is refused with an explanation instead of silence.
+ * Deliberately about the promises a user can see, not about internals: the
+ * document opens and the hub does not (UX rule 2), nothing executes before
+ * consent, and a container carrying machine code is refused with an
+ * explanation instead of silence. The hub's own tests live in `hub.spec.ts`.
  */
 
 import { readFileSync } from "node:fs";
@@ -21,17 +22,6 @@ let app: StudioApp | undefined;
 test.afterEach(async () => {
   await app?.close();
   app = undefined;
-});
-
-test("a bare launch opens the hub", async () => {
-  app = await launchStudio();
-  const hub = await app.hub();
-
-  await expect(hub.locator("#open-poid")).toHaveText(/Open a POID/);
-  await expect(hub.locator("#conn-title")).toHaveText("Connections");
-  // A throwaway app-data directory means a clean registry: proof that the
-  // harness is not reading the maintainer's real connections.
-  await expect(hub.locator("#conn-list .conn__row")).toHaveCount(0);
 });
 
 test("opening a document shows that document, and never the hub", async () => {

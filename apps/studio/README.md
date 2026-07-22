@@ -15,6 +15,13 @@ styling choice.
 - `src/` — the window frontends: `reader-main.ts` (Reader), `hub-main.ts`
   (hub), plus the IPC document contract (`document-dto.ts`) and the routing
   (`desktop-flow.ts`) that mirrors the Web Reader's `openBytes`.
+- `src/hub/` — one file per hub tool. Each exports a `Panel` that renders its
+  own markup into an empty container; `hub-main.ts` only decides which one is
+  on screen. Adding a tool means adding it to that file's `PANELS` list, and
+  means no edit to `static/index.html`.
+- `e2e/` — the desktop test tier: Playwright driving the **built binary** over
+  CDP. Windows only, and it will not start while a Studio is already running.
+  See `e2e/README.md`.
 - `static/` + `scripts/build-ui.mjs` — the two window pages, bundled with
   esbuild into `dist-ui/` (Tauri's `frontendDist`). The `@poid/sdk` bootstrap
   is injected as `__SDK_SOURCE__`, exactly like the Web Reader's site build.
@@ -28,6 +35,7 @@ styling choice.
 ```
 pnpm install && pnpm -r build          # workspace packages once
 pnpm --filter @poid/studio tauri dev   # or: tauri build
+pnpm --filter @poid/studio e2e         # drives the built binary (Windows)
 ```
 
 `tauri build` produces MSI + NSIS on Windows, `.dmg` on macOS, and
