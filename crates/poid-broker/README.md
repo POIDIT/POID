@@ -5,7 +5,7 @@ Connections (OS keychain, credential isolation). Every privileged operation from
 sandboxed application passes through this crate (SPEC §7, §9).
 
 **Any change to this crate requires an explicit security review note in the PR.**
-Read `docs/SECURITY.md` before touching it.
+Read `spec/SECURITY.md` before touching it.
 
 ```
 cargo test -p poid-broker

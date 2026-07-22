@@ -38,7 +38,7 @@
 5. Never add a bypass "just for development". Use a feature flag that is compiled out of release builds.
 6. Any change to `crates/poid-broker/` requires an explicit security review note in the PR.
 
-Read `docs/SECURITY.md` before touching the broker, the sandbox, or the container parser.
+Read `spec/SECURITY.md` before touching the broker, the sandbox, or the container parser.
 
 ## UX rules (non-negotiable)
 

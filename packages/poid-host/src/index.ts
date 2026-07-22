@@ -5,7 +5,7 @@
  * reader: it creates the sandboxed iframe, serves the container from a
  * dedicated synthetic origin (SPEC §5.2.1), applies the CSP, and brokers every
  * `window.poid` call with scope derived from the sending window. Read
- * `docs/SECURITY.md` before changing it.
+ * `spec/SECURITY.md` before changing it.
  */
 
 export { type IncomingMessage, SandboxBridge } from "./bridge.js";

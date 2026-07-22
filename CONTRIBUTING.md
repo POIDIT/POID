@@ -4,8 +4,8 @@ Thank you for contributing. Start by reading:
 
 1. [README.md](README.md) — what POID is and the three rules
 2. [CONVENTIONS.md](CONVENTIONS.md) — engineering conventions (binding)
-3. [docs/SPEC.md](docs/SPEC.md) — the format specification
-4. [docs/SECURITY.md](docs/SECURITY.md) — required before touching the broker,
+3. [spec/SPEC.md](spec/SPEC.md) — the format specification
+4. [spec/SECURITY.md](spec/SECURITY.md) — required before touching the broker,
    the sandbox or the container parser
 
 ## Ground rules

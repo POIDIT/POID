@@ -105,14 +105,24 @@ The conformance suite proves *container-level* conformance. A **reader** —
 software that executes POID applications — must additionally enforce, at
 run time:
 
-- **Isolation** (SPEC §5.2): sandboxed execution context, opaque origin,
-  CSP with `connect-src 'none'` by default;
+- **Isolation** (SPEC §5.2): sandboxed execution context, a dedicated
+  reader-controlled origin isolated from the host (§5.2.1), CSP with
+  `connect-src 'none'` by default;
 - **Credential isolation** (SPEC §7.1): the application never receives a
-  credential, in any form, ever;
+  credential, in any form, ever — and neither does any other browser-engine
+  context, including the reader's own UI;
+- **Connections** (SPEC §7.2), for a reader that offers them: the application
+  cannot name a provider, the user can always decline and keep data local,
+  backend errors are scrubbed, and outbound requests connect only to a
+  validated address;
 - **Consent** (SPEC §9.1): preview mode before first execution, consent
   recorded per `app.id` + content hash, re-triggered on change.
 
 These cannot be proven by a fixture suite; they are normative requirements.
+
+A reader that offers no Connections at all is still conformant — §7.2 binds
+only implementations that do. What is **not** conformant is offering them
+with a weaker secret store than §7.2.2 requires.
 
 > A reader that passes the container suite but does not enforce §5.2, §7.1
 > and §9.1 **MUST NOT** be described or marketed as a POID reader

@@ -7,7 +7,7 @@
 //! # Security
 //!
 //! Any change to this crate requires an explicit security review note in the
-//! PR (see `CONTRIBUTING.md`). Read `docs/SECURITY.md` first. Never trust a
+//! PR (see `CONTRIBUTING.md`). Read `spec/SECURITY.md` first. Never trust a
 //! scope identifier sent by the sandbox — derive scope from the window.
 
 /// Default posture for every permission not explicitly granted (SPEC §9.1).

@@ -72,8 +72,9 @@ poid.db.sql.exec(sql: string, params?: unknown[]): Promise<{
 poid.db.sql.transaction(fn: (tx: SqlTx) => Promise<void>): Promise<void>
 ```
 
-Backed by wa-sqlite (WASM) locally, or by a Connection when `storage.mode = "connection"`.
-The application **does not** know or care which. **The broker executes the query.**
+Backed by wa-sqlite (WASM) locally, or by a Connection when `storage.mode = "connection"` (SPEC §7.2).
+The application **does not** know or care which — and **MUST NOT** be able to find
+out. **The broker executes the query.**
 
 Requires `runtime.profile` to include `sql`, or `storage.mode = "connection"` with `kind: "sql"`.
 
@@ -136,9 +137,14 @@ poid.net.fetch(url: string, init?: RequestInit): Promise<Response>
 
 - The origin **MUST** appear in `permissions.network` **and** be user-approved.
 - The broker performs the request. It strips `Authorization` headers set by the app and injects credentials only if the origin maps to a Connection.
+- The broker resolves the destination itself, rejects private and loopback address ranges, and connects to the address it validated — not to the hostname (SPEC §7.2.5). Every redirect hop is re-checked against the allowlist.
 - Anything else is blocked by CSP before it reaches the broker at all.
 
 An app with `"network": []` has no `poid.net`. The property is undefined.
+
+The returned `Response` carries the backend's status, headers and body. It does
+**not** carry the request that produced it: an app cannot read back the headers
+the broker actually sent, because those include the credential.
 
 ---
 
@@ -158,6 +164,12 @@ poid.ai.models(): Promise<string[]>
 The user configures an AI Connection once, in Studio (their own key, or POID Cloud AI Gateway).
 **The application never sees the key.** It asks for a completion; the broker calls the provider.
 
+`poid.ai` is absent unless an AI Connection is bound. With none configured, a
+reader that exposes the namespace at all **MUST** reject with
+`CONNECTION_REQUIRED` rather than silently returning an empty completion.
+`models()` returns the logical names the bound connection offers — never the
+provider's endpoint, key, or account identity.
+
 This is what makes "an AI app you can email someone" safe: the recipient plugs in *their* key, and the file has no way to exfiltrate it.
 
 ---
@@ -170,9 +182,10 @@ poid.mcp.call(serverId: string, tool: string, args: object): Promise<unknown>
 ```
 
 - Only servers listed in `permissions.mcp` and approved by the user.
-- **HTTP/SSE transport only.** `stdio` (local process spawning) is **not** available to applications — ever.
+- **HTTP/SSE transport only.** `stdio` (local process spawning) is **not** available to applications — ever. A conformant reader does not implement a `stdio` transport that applications could reach, rather than implementing one and refusing to call it.
+- Consent is per server **and** per tool. `servers()` lists only what the user approved; `call()` on an unapproved tool rejects with `PERMISSION_DENIED`.
 - OAuth happens in Studio (Connections). The app receives results, never tokens.
-- The user may revoke any server or tool at any time.
+- The user may revoke any server or tool at any time. Revocation takes effect on the next call; a reader **SHOULD** also cancel calls already in flight.
 
 ---
 
@@ -213,11 +226,17 @@ class PoidError extends Error { code: string }
 | `PERMISSION_DENIED` | Capability not declared, or not granted by the user |
 | `QUOTA_EXCEEDED` | Storage quota exhausted |
 | `NOT_AVAILABLE` | Capability not supported by this reader / platform |
-| `CONNECTION_REQUIRED` | `storage.mode = "connection"` but none configured |
+| `CONNECTION_REQUIRED` | The call needs a Connection and none is bound — either none is configured, or the user declined to bind one (SPEC §7.2.3) |
 | `INVALID_ARGUMENT` | Bad input |
 | `INTERNAL` | Reader-side failure |
 
 Error messages **MUST NOT** contain credentials, absolute host paths, or vault internals.
+
+Backend errors are **scrubbed, not forwarded** (SPEC §7.2.4). A failing query
+against a connection yields the code above with reader-authored text; the
+backend's own message, which may quote the connection string, does not cross the
+boundary. This makes some debugging harder on purpose — the reader logs the
+detail where the user, and only the user, can read it.
 
 ---
 
