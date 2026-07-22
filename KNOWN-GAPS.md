@@ -149,6 +149,26 @@ for the credential.
 
 ---
 
+### The esbuild engine has never been downloaded from Cloudflare
+
+`apps/studio/src-tauri/src/esbuild_engine.rs` downloads the esbuild-wasm build
+engine from the URL in `engines/esbuild.json`
+(`https://poiddev.poidit.workers.dev/engines/esbuild-0.25.12.wasm`), verifies it
+against the pinned checksum, and caches it. **That file has never been uploaded
+to the Worker**, so the download path has never run against a live source.
+
+Development and CI never hit it: `POID_ESBUILD_WASM` points Studio at the wasm
+`scripts/fetch-esbuild.mjs` stages from the `esbuild-wasm` dev dependency, and
+the checksum-verify path (the security-relevant part) is exercised that way.
+What is untested is only the network fetch itself.
+
+**Closes it:** the maintainer uploads `esbuild.wasm` (the bytes
+`scripts/fetch-esbuild.mjs` stages, sha256 in `engines/esbuild.json`) to the
+poiddev Worker at that path. Then a fresh install with no override downloads,
+verifies and caches it on the first build-path conversion.
+
+---
+
 ## Deliberately not built
 
 ### `poid.ai` and `poid.mcp`

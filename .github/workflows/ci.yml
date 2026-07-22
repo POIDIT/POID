@@ -121,6 +121,16 @@ jobs:
       # backend. Windows only — WebView2 is Chromium and speaks CDP, while the
       # WebKit webviews on macOS and Linux do not. No `playwright install`:
       # the harness attaches to the application, it does not launch a browser.
+      #
+      # Stage the converter's build path first: the esbuild engine (from the
+      # esbuild-wasm dev dependency, no network) and the Standard Library
+      # bundles. The harness points Studio at both; without them the build-path
+      # test skips itself rather than fails.
+      - name: Stage the build engine and Standard Library (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          node scripts/fetch-esbuild.mjs
+          pnpm --filter @poid/stdlib build:lib
       - name: Desktop e2e (the real Studio, over CDP)
         if: runner.os == 'Windows'
         run: pnpm --filter @poid/studio e2e

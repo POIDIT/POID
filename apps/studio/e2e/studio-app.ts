@@ -233,12 +233,21 @@ export async function launchStudio(options: LaunchOptions = {}): Promise<StudioA
   }
   const args = documentPath ? [documentPath] : [];
 
+  // Point the converter's build path at the locally staged engine and
+  // Standard Library rather than the Cloudflare download: `fetch-esbuild.mjs`
+  // stages the wasm from node_modules, and `@poid/stdlib` builds its bundles.
+  // Absent files just leave the build-path test to skip itself.
+  const stagedEsbuild = join(repoRoot, "engines", ".cache", "esbuild", "esbuild.wasm");
+  const stdlibDir = join(repoRoot, "packages", "poid-stdlib", "lib");
+
   const child = spawn(exe, args, {
     env: {
       ...process.env,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
       APPDATA: join(dataDir, "Roaming"),
       LOCALAPPDATA: join(dataDir, "Local"),
+      ...(existsSync(stagedEsbuild) ? { POID_ESBUILD_WASM: stagedEsbuild } : {}),
+      ...(existsSync(stdlibDir) ? { POID_STDLIB: stdlibDir } : {}),
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: false,

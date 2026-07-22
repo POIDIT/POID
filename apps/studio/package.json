@@ -19,9 +19,11 @@
   "dependencies": {
     "@poid/host": "workspace:*",
     "@poid/sdk": "workspace:*",
+    "@poid/toolchain": "workspace:*",
     "@poid/ui": "workspace:*",
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-dialog": "^2.2.0",
+    "esbuild-wasm": "0.25.12",
     "wa-sqlite": "1.0.0"
   },
   "devDependencies": {

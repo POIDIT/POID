@@ -22,9 +22,15 @@ styling choice.
   (`convert`), connections (`connections`).
 - The converter (`src/hub/convert.ts` + `src-tauri/src/convert.rs`) runs the
   shared `poid-convert` pipeline over IPC — the same conversion the CLI does.
-  The no-build path (a folder of ready-to-run files, or a single HTML page)
-  works today; a project that needs bundling is reported honestly and waits on
-  the esbuild-wasm runtime (`engines/esbuild.json`).
+  Static folders and single HTML pages need no build; a TypeScript/JSX project
+  is bundled by **esbuild-wasm in the hub window** (`src/hub/esbuild-build.ts`),
+  fed by `convert_prepare` and returned to `convert_finish`.
+- The esbuild engine is a **downloaded runtime** (`src-tauri/src/esbuild_engine.rs`,
+  pinned by `engines/esbuild.json`): fetched once from the poiddev Worker,
+  verified against its checksum, cached. For development and CI, point
+  `POID_ESBUILD_WASM` at the wasm staged by `scripts/fetch-esbuild.mjs` and
+  `POID_STDLIB` at `packages/poid-stdlib/lib`; the e2e harness does this
+  automatically.
 - `e2e/` — the desktop test tier: Playwright driving the **built binary** over
   CDP. Windows only, and it will not start while a Studio is already running.
   See `e2e/README.md`.

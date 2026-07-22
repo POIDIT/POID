@@ -15,6 +15,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { button, el } from "./dom.js";
+import { type BuildRequest, buildInApp } from "./esbuild-build.js";
 import type { Panel } from "./panels.js";
 
 /** One file to convert: a container-relative path and its bytes. */
@@ -23,13 +24,21 @@ interface InputFile {
   bytes: Uint8Array;
 }
 
-interface ConvertOutcome {
+/** What `convert_prepare` returns: a finished POID, or a build request. */
+interface ConvertPrep extends BuildRequest {
   needsBuild: boolean;
-  poidBase64: string | null;
   kind: string;
+  poidBase64: string | null;
   fileCount: number;
   byteLen: number;
-  message: string | null;
+  token: string | null;
+}
+
+/** What `convert_finish` returns. */
+interface ConvertOutcome {
+  poidBase64: string;
+  fileCount: number;
+  byteLen: number;
 }
 
 /** Base64 of a byte array, chunked so a large file does not overflow the call
@@ -129,6 +138,7 @@ export const convertPanel: Panel = {
     folderInput.type = "file";
     folderInput.webkitdirectory = true;
     const fileInput = el("input", "convert__file") as HTMLInputElement;
+    fileInput.id = "convert-file-input";
     fileInput.type = "file";
     fileInput.multiple = true;
 
@@ -153,21 +163,39 @@ export const convertPanel: Panel = {
       }
       busy = true;
       drop.classList.remove("convert__drop--over");
+      const name = nameFrom(files);
       try {
-        setStatus(`Building a POID from ${files.length} file${files.length === 1 ? "" : "s"}…`);
-        const outcome = await invoke<ConvertOutcome>("convert_to_poid", {
+        setStatus(`Reading ${files.length} file${files.length === 1 ? "" : "s"}…`);
+        const prep = await invoke<ConvertPrep>("convert_prepare", {
           files: files.map((f) => ({ rel: f.rel, bytesBase64: toBase64(f.bytes) })),
-          displayName: nameFrom(files),
+          displayName: name,
         });
 
-        if (outcome.needsBuild || !outcome.poidBase64) {
-          setStatus(outcome.message ?? "This project needs building, which is coming soon.");
-          return;
+        // Either the no-build path already produced a POID, or we must build.
+        let poidBase64: string;
+        let fileCount: number;
+        let byteLen: number;
+        if (prep.needsBuild) {
+          if (!prep.token) throw new Error("the converter did not return a build handle");
+          const bundle = await buildInApp(prep, setStatus);
+          setStatus("Packing…");
+          const outcome = await invoke<ConvertOutcome>("convert_finish", {
+            token: prep.token,
+            jsBase64: bundle.jsBase64,
+            cssBase64: bundle.cssBase64,
+          });
+          poidBase64 = outcome.poidBase64;
+          fileCount = outcome.fileCount;
+          byteLen = outcome.byteLen;
+        } else {
+          if (!prep.poidBase64) throw new Error("the converter produced nothing to save");
+          poidBase64 = prep.poidBase64;
+          fileCount = prep.fileCount;
+          byteLen = prep.byteLen;
         }
 
-        const suggested = `${nameFrom(files)}.poid`;
         const destination = await save({
-          defaultPath: suggested,
+          defaultPath: `${name}.poid`,
           filters: [{ name: "POID Document", extensions: ["poid"] }],
         });
         if (!destination) {
@@ -175,9 +203,9 @@ export const convertPanel: Panel = {
           return;
         }
 
-        await invoke("write_poid", { path: destination, poidBase64: outcome.poidBase64 });
-        const kb = (outcome.byteLen / 1024).toFixed(1);
-        setStatus(`Saved ${outcome.fileCount} files (${kb} KiB) to ${destination}`, "ok");
+        await invoke("write_poid", { path: destination, poidBase64 });
+        const kb = (byteLen / 1024).toFixed(1);
+        setStatus(`Saved ${fileCount} files (${kb} KiB) to ${destination}`, "ok");
       } catch (e) {
         setStatus(typeof e === "string" ? e : `Conversion failed: ${String(e)}`, "error");
       } finally {
