@@ -47,6 +47,16 @@ impl From<PoidError> for CmdError {
     }
 }
 
+impl From<poid_convert::ConvertError> for CmdError {
+    fn from(e: poid_convert::ConvertError) -> Self {
+        CmdError {
+            code: e.code,
+            message: e.message,
+            poid_code: None,
+        }
+    }
+}
+
 impl From<std::io::Error> for CmdError {
     fn from(e: std::io::Error) -> Self {
         CmdError {

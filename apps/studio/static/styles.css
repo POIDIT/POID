@@ -79,12 +79,53 @@ button:hover {
   font-size: 0.9rem;
 }
 
+/* The shell: a list of tools on the left, one panel on the right. */
+
+.hub-shell {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.hub-nav {
+  flex: 0 0 12rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 1.25rem 0.75rem;
+  border-right: 1px solid var(--border);
+}
+
+.hub-nav__item {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.hub-nav__item:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.hub-nav__item[aria-current="page"] {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
 .hub {
   flex: 1;
   width: 100%;
   max-width: 64rem;
-  margin: 0 auto;
   padding: 2rem 1.5rem;
+  overflow-y: auto;
+}
+
+.hub-panel__head {
+  margin-bottom: 1.25rem;
 }
 
 .hub__title {
@@ -105,45 +146,58 @@ button:hover {
   font-weight: 600;
 }
 
-.hub__tiles {
-  margin-top: 2.5rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-  gap: 1rem;
-}
+/* ---- Converter panel (M12.2) ---- */
 
-.hub__tile {
-  position: relative;
-  background: var(--panel);
-  border: 1px solid var(--border);
+.convert__drop {
+  border: 2px dashed var(--border);
   border-radius: 12px;
-  padding: 1rem 1.25rem 1.25rem;
-  opacity: 0.6;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
-.hub__tile h2 {
-  margin: 0 0 0.35rem;
-  font-size: 1.05rem;
+.convert__drop--over {
+  border-color: var(--accent);
+  background: var(--panel);
 }
 
-.hub__tile p {
-  margin: 0;
+.convert__hint {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.convert__sub {
+  margin: 0.25rem 0 0.75rem;
   color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.45;
 }
 
-.hub__soon {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.9rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.convert__picks {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+/* The native file inputs are driven by the buttons above; never shown. */
+.convert__file {
+  display: none;
+}
+
+.convert__status {
+  margin-top: 1rem;
+  min-height: 1.4rem;
   color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.1rem 0.55rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.convert__status--ok {
+  color: var(--accent);
+}
+
+.convert__status--error {
+  color: var(--danger);
 }
 
 /* ---- The Reader window: the document fills the window ---- */
@@ -355,20 +409,10 @@ button:hover {
 
 /* ---- Connections (M11.3): the user's databases and API keys ---- */
 
-.conn {
-  margin-top: 2.5rem;
-}
-
 .conn__head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 1rem;
-}
-
-.conn__title {
-  margin: 0 0 0.4rem;
-  font-size: 1.15rem;
 }
 
 .conn__list {

@@ -15,6 +15,25 @@ styling choice.
 - `src/` — the window frontends: `reader-main.ts` (Reader), `hub-main.ts`
   (hub), plus the IPC document contract (`document-dto.ts`) and the routing
   (`desktop-flow.ts`) that mirrors the Web Reader's `openBytes`.
+- `src/hub/` — one file per hub tool. Each exports a `Panel` that renders its
+  own markup into an empty container; `hub-main.ts` only decides which one is
+  on screen. Adding a tool means adding it to that file's `PANELS` list, and
+  means no edit to `static/index.html`. Tools today: open (`home`), convert
+  (`convert`), connections (`connections`).
+- The converter (`src/hub/convert.ts` + `src-tauri/src/convert.rs`) runs the
+  shared `poid-convert` pipeline over IPC — the same conversion the CLI does.
+  Static folders and single HTML pages need no build; a TypeScript/JSX project
+  is bundled by **esbuild-wasm in the hub window** (`src/hub/esbuild-build.ts`),
+  fed by `convert_prepare` and returned to `convert_finish`.
+- The esbuild engine is a **downloaded runtime** (`src-tauri/src/esbuild_engine.rs`,
+  pinned by `engines/esbuild.json`): fetched once from the poiddev Worker,
+  verified against its checksum, cached. For development and CI, point
+  `POID_ESBUILD_WASM` at the wasm staged by `scripts/fetch-esbuild.mjs` and
+  `POID_STDLIB` at `packages/poid-stdlib/lib`; the e2e harness does this
+  automatically.
+- `e2e/` — the desktop test tier: Playwright driving the **built binary** over
+  CDP. Windows only, and it will not start while a Studio is already running.
+  See `e2e/README.md`.
 - `static/` + `scripts/build-ui.mjs` — the two window pages, bundled with
   esbuild into `dist-ui/` (Tauri's `frontendDist`). The `@poid/sdk` bootstrap
   is injected as `__SDK_SOURCE__`, exactly like the Web Reader's site build.
@@ -28,6 +47,7 @@ styling choice.
 ```
 pnpm install && pnpm -r build          # workspace packages once
 pnpm --filter @poid/studio tauri dev   # or: tauri build
+pnpm --filter @poid/studio e2e         # drives the built binary (Windows)
 ```
 
 `tauri build` produces MSI + NSIS on Windows, `.dmg` on macOS, and

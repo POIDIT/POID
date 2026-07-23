@@ -28,11 +28,23 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 poid-core = { path = "../../../crates/poid-core" }
+poid-convert = { path = "../../../crates/poid-convert" }
 poid-vault = { path = "../../../crates/poid-vault" }
 poid-broker = { path = "../../../crates/poid-broker" }
 poid-connections = { path = "../../../crates/poid-connections" }
 uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["sync"] }
+sha2 = "0.10"
+# Downloads the esbuild-wasm build engine (a managed runtime, like Pyodide):
+# a pinned, checksum-verified one-time fetch, not the brokered per-hop fetch
+# poid-connections does. Same rustls-with-ring setup as poid-connections, so a
+# build needs no OpenSSL headers and no C toolchain beyond ring's.
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider",
+    "webpki-roots",
+    "http2",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

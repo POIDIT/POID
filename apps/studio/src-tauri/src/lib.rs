@@ -15,7 +15,9 @@ mod cli;
 mod commands;
 mod connections;
 mod connections_state;
+mod convert;
 mod document;
+mod esbuild_engine;
 mod state;
 mod vault_state;
 mod windows;
@@ -42,6 +44,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
         .manage(SessionAssets::default())
+        .manage(convert::ConvertJobs::default())
         // The synthetic origin (SPEC §5.2.1): serve the sandboxed app and its
         // relative subresources from `poid://`, and nothing else. Registered
         // per session by the Reader window; the raw container, the vault, and
@@ -109,7 +112,13 @@ pub fn run() {
             connections::connection_bind,
             connections::open_hub,
             connections::net_fetch,
-            connections::connection_sql_exec
+            connections::connection_sql_exec,
+            convert::convert_prepare,
+            convert::convert_finish,
+            convert::write_poid,
+            esbuild_engine::esbuild_engine_status,
+            esbuild_engine::esbuild_engine_wasm,
+            esbuild_engine::esbuild_engine_remove
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {

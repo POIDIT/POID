@@ -108,13 +108,29 @@ needs only Node. This belongs in its own branch, not in a milestone PR.
 
 ### Nobody has run POID Studio with any of this
 
-The single most important gap. CONVENTIONS' Definition of Done includes *"the
-maintainer can run it and see the promised result"*, and that box is unticked
-for M11.
+The single most important gap at the end of M11. CONVENTIONS' Definition of
+Done includes *"the maintainer can run it and see the promised result"*, and
+that box was unticked.
 
-Everything is covered by unit, integration and end-to-end tests, but the e2e
-tier drives the **web** reader stack in Chromium — not the Tauri application.
-These paths have never executed in the running product:
+**Partly closed in M12.0.** `apps/studio/e2e/` now drives the built binary over
+CDP. It proves that the application starts, that a bare launch opens the hub,
+that a double-clicked file opens a Reader window and never the hub, that nothing
+executes before consent, that a container carrying machine code is refused with
+a visible explanation, and (M12.2) that a project converts to a `.poid` —
+including a JSX component bundled by esbuild-wasm inside WebView2.
+
+Two limits on that coverage:
+
+- **It is a local / interactive tier, not a CI one.** Driving WebView2 over CDP
+  needs an interactive desktop session to open the debugging port; GitHub's
+  `windows-latest` runner is non-interactive (Session 0), so WebView2 never
+  starts its browser process and the port never opens. The tests pass on a real
+  desktop but were removed from CI. Bringing them into CI means the official
+  Tauri route — `tauri-driver` over Edge WebDriver — a tracked follow-up.
+- The harness cannot reach macOS or Linux, whose WebKit webviews have no CDP
+  endpoint at all.
+
+These M11 paths have still never executed in the running product:
 
 - the connection manager in the hub (add, edit, delete, the missing-credential state)
 - the binding prompt in a real Reader window
@@ -138,6 +154,26 @@ assumptions of whoever wrote it.
 provider. `node scripts/verify-sql-connection.mjs "postgres://…"` runs the
 check through the product's own crate and then greps everything POID persists
 for the credential.
+
+---
+
+### The esbuild engine has never been downloaded from Cloudflare
+
+`apps/studio/src-tauri/src/esbuild_engine.rs` downloads the esbuild-wasm build
+engine from the URL in `engines/esbuild.json`
+(`https://poiddev.poidit.workers.dev/engines/esbuild-0.25.12.wasm`), verifies it
+against the pinned checksum, and caches it. **That file has never been uploaded
+to the Worker**, so the download path has never run against a live source.
+
+Development and CI never hit it: `POID_ESBUILD_WASM` points Studio at the wasm
+`scripts/fetch-esbuild.mjs` stages from the `esbuild-wasm` dev dependency, and
+the checksum-verify path (the security-relevant part) is exercised that way.
+What is untested is only the network fetch itself.
+
+**Closes it:** the maintainer uploads `esbuild.wasm` (the bytes
+`scripts/fetch-esbuild.mjs` stages, sha256 in `engines/esbuild.json`) to the
+poiddev Worker at that path. Then a fresh install with no override downloads,
+verifies and caches it on the first build-path conversion.
 
 ---
 

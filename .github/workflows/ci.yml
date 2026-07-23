@@ -117,6 +117,14 @@ jobs:
         run: cargo clippy --manifest-path apps/studio/src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Build installers (unsigned; signing is a tracked follow-up)
         run: pnpm --filter @poid/studio exec tauri build
+      # The desktop e2e tier (apps/studio/e2e) is deliberately NOT run here. It
+      # drives the built binary's WebView2 over CDP, which needs an interactive
+      # desktop session to open its debugging port; GitHub's windows-latest
+      # runner is non-interactive (Session 0), so WebView2 never creates its
+      # browser process and the port never opens. The tests pass locally and on
+      # the maintainer's machine — see apps/studio/e2e/README.md and
+      # KNOWN-GAPS.md. Moving them into CI would mean the official Tauri route
+      # (tauri-driver / Edge WebDriver), a tracked follow-up.
       - uses: actions/upload-artifact@v4
         with:
           name: studio-${{ matrix.os }}
