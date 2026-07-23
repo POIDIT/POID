@@ -117,23 +117,14 @@ jobs:
         run: cargo clippy --manifest-path apps/studio/src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Build installers (unsigned; signing is a tracked follow-up)
         run: pnpm --filter @poid/studio exec tauri build
-      # Drives the binary `tauri build` just produced: real windows, real Rust
-      # backend. Windows only — WebView2 is Chromium and speaks CDP, while the
-      # WebKit webviews on macOS and Linux do not. No `playwright install`:
-      # the harness attaches to the application, it does not launch a browser.
-      #
-      # Stage the converter's build path first: the esbuild engine (from the
-      # esbuild-wasm dev dependency, no network) and the Standard Library
-      # bundles. The harness points Studio at both; without them the build-path
-      # test skips itself rather than fails.
-      - name: Stage the build engine and Standard Library (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          node scripts/fetch-esbuild.mjs
-          pnpm --filter @poid/stdlib build:lib
-      - name: Desktop e2e (the real Studio, over CDP)
-        if: runner.os == 'Windows'
-        run: pnpm --filter @poid/studio e2e
+      # The desktop e2e tier (apps/studio/e2e) is deliberately NOT run here. It
+      # drives the built binary's WebView2 over CDP, which needs an interactive
+      # desktop session to open its debugging port; GitHub's windows-latest
+      # runner is non-interactive (Session 0), so WebView2 never creates its
+      # browser process and the port never opens. The tests pass locally and on
+      # the maintainer's machine — see apps/studio/e2e/README.md and
+      # KNOWN-GAPS.md. Moving them into CI would mean the official Tauri route
+      # (tauri-driver / Edge WebDriver), a tracked follow-up.
       - uses: actions/upload-artifact@v4
         with:
           name: studio-${{ matrix.os }}

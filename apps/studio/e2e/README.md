@@ -22,6 +22,23 @@ application. A test that silently triggers a fifteen-minute release link is a
 test nobody runs twice. A `debug` build is used if no `release` one exists, and
 `POID_STUDIO_BIN` overrides both.
 
+To exercise the converter's **build path** (a TypeScript/JSX project bundled by
+esbuild-wasm), stage the engine and the Standard Library first — the harness
+points Studio at both, and skips the build-path test if they are absent:
+
+```bash
+node scripts/fetch-esbuild.mjs            # stages engines/.cache/esbuild
+pnpm --filter @poid/stdlib build:lib      # builds packages/poid-stdlib/lib
+```
+
+**This is a local / interactive tier — it is not run in CI.** Driving WebView2
+over CDP needs an interactive desktop session to open the debugging port;
+GitHub's `windows-latest` runner is non-interactive (Session 0), so WebView2
+never creates its browser process and the port never opens. The tests pass on a
+real desktop (a developer's machine, the maintainer's machine). Bringing them
+into CI would mean the official Tauri route — `tauri-driver` over Edge
+WebDriver — which is a tracked follow-up, not this milestone.
+
 **Close every Studio and Reader window first.** Studio holds a single-instance
 lock, so a launch while one is running is forwarded into that process; the
 harness detects this and stops with an explanation rather than driving the

@@ -113,14 +113,22 @@ Done includes *"the maintainer can run it and see the promised result"*, and
 that box was unticked.
 
 **Partly closed in M12.0.** `apps/studio/e2e/` now drives the built binary over
-CDP, and runs in CI on Windows. It proves that the application starts, that a
-bare launch opens the hub, that a double-clicked file opens a Reader window and
-never the hub, that nothing executes before consent, and that a container
-carrying machine code is refused with a visible explanation. That is the shell
-and the reader path — it is not M11.
+CDP. It proves that the application starts, that a bare launch opens the hub,
+that a double-clicked file opens a Reader window and never the hub, that nothing
+executes before consent, that a container carrying machine code is refused with
+a visible explanation, and (M12.2) that a project converts to a `.poid` —
+including a JSX component bundled by esbuild-wasm inside WebView2.
 
-What the harness cannot reach yet: macOS and Linux, whose WebKit webviews have
-no CDP endpoint.
+Two limits on that coverage:
+
+- **It is a local / interactive tier, not a CI one.** Driving WebView2 over CDP
+  needs an interactive desktop session to open the debugging port; GitHub's
+  `windows-latest` runner is non-interactive (Session 0), so WebView2 never
+  starts its browser process and the port never opens. The tests pass on a real
+  desktop but were removed from CI. Bringing them into CI means the official
+  Tauri route — `tauri-driver` over Edge WebDriver — a tracked follow-up.
+- The harness cannot reach macOS or Linux, whose WebKit webviews have no CDP
+  endpoint at all.
 
 These M11 paths have still never executed in the running product:
 
